@@ -93,7 +93,7 @@ impl LedgerCleanupService {
             }
         }
         iterate_time.stop();
-        info!(
+        println!(
             "checking for ledger purge: max_shreds: {} slots: {} total_shreds: {} {}",
             max_ledger_shreds,
             shreds.len(),
@@ -197,6 +197,8 @@ mod tests {
     use super::*;
     use solana_ledger::blockstore::make_many_slot_entries;
     use solana_ledger::get_tmp_ledger_path;
+    use solana_sdk::signature::Signature;
+    use solana_transaction_status::TransactionStatusMeta;
     use std::sync::mpsc::channel;
 
     #[test]
@@ -235,26 +237,47 @@ mod tests {
         let (sender, receiver) = channel();
 
         let mut first_insert = Measure::start("first_insert");
-        let initial_slots = 50;
+        let initial_slots = 50_000;
         let initial_entries = 5;
-        let (shreds, _) = make_many_slot_entries(0, initial_slots, initial_entries);
+        let (shreds, entries) = make_many_slot_entries(0, initial_slots, initial_entries);
         blockstore.insert_shreds(shreds, None, false).unwrap();
         first_insert.stop();
         info!("{}", first_insert);
 
+        let transaction_status = TransactionStatusMeta {
+            status: Ok(()),
+            fee: 2000,
+            pre_balances: vec![1, 2, 3],
+            post_balances: vec![3, 2, 1],
+        };
+        let mut insert_statuses = Measure::start("insert_transaction_statuses");
+        for j in 0..entries.len() as u64 {
+            let random_bytes: Vec<u8> = (0..64).map(|_| { rand::random::<u8>() }).collect();
+            blockstore.write_transaction_status((j/initial_entries, Signature::new(&random_bytes)), &transaction_status).unwrap();
+        }
+        insert_statuses.stop();
+        println!("insert_statuses {}", insert_statuses);
+
         let mut last_purge_slot = 0;
         let mut slot = initial_slots;
-        let mut num_slots = 6;
-        for _ in 0..5 {
+        let mut num_slots = 10_000;
+        for _ in 0..10 {
             let mut insert_time = Measure::start("insert time");
             let batch_size = 2;
             let batches = num_slots / batch_size;
             for i in 0..batches {
-                let (shreds, _) = make_many_slot_entries(slot + i * batch_size, batch_size, 5);
+                let (shreds, entries) = make_many_slot_entries(slot + i * batch_size, batch_size, 5);
                 blockstore.insert_shreds(shreds, None, false).unwrap();
                 if i % 100 == 0 {
                     info!("inserting..{} of {}", i, batches);
                 }
+                let mut insert_statuses = Measure::start("insert_transaction_statuses");
+                for j in 0..entries.len() as u64 {
+                    let random_bytes: Vec<u8> = (0..64).map(|_| { rand::random::<u8>() }).collect();
+                    blockstore.write_transaction_status((slot + i * batch_size + j/5, Signature::new(&random_bytes)), &transaction_status).unwrap();
+                }
+                insert_statuses.stop();
+                info!("insert_statuses {}", insert_statuses);
             }
             insert_time.stop();
 
@@ -269,7 +292,7 @@ mod tests {
             )
             .unwrap();
             time.stop();
-            info!(
+            println!(
                 "slot: {} size: {} {} {}",
                 slot, num_slots, insert_time, time
             );
