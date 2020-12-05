@@ -23,6 +23,7 @@ impl std::fmt::Debug for DisplayError {
     }
 }
 
+mod bip32;
 pub mod commitment;
 pub mod fee_payer;
 pub mod input_parsers;

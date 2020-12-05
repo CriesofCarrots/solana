@@ -1,4 +1,5 @@
 use crate::{
+    bip32::*,
     input_parsers::pubkeys_sigs_of,
     offline::{SIGNER_ARG, SIGN_ONLY_ARG},
     ArgConstant,
@@ -14,8 +15,9 @@ use solana_sdk::{
     hash::Hash,
     pubkey::Pubkey,
     signature::{
-        keypair_from_seed, keypair_from_seed_phrase_and_passphrase, read_keypair,
-        read_keypair_file, Keypair, NullSigner, Presigner, Signature, Signer,
+        generate_seed_from_seed_phrase_and_passphrase, keypair_from_seed,
+        keypair_from_seed_phrase_and_passphrase, read_keypair, read_keypair_file, Keypair,
+        NullSigner, Presigner, Signature, Signer,
     },
 };
 use std::{
@@ -292,10 +294,21 @@ pub fn keypair_from_seed_phrase(
         "[{}] If this seed phrase has an associated passphrase, enter it now. Otherwise, press ENTER to continue: ",
         keypair_name,
     );
+    let derivation_prompt = format!(
+        "[{}] If you would like to use a specific derivation path (eg. m/44'/501'/0'), enter it now. Otherwise, press ENTER to continue: ",
+        keypair_name,
+    );
 
     let keypair = if skip_validation {
         let passphrase = prompt_passphrase(&passphrase_prompt)?;
-        keypair_from_seed_phrase_and_passphrase(&seed_phrase, &passphrase)?
+        let derivation = prompt_password_stderr(&derivation_prompt)?;
+        if !derivation.is_empty() {
+            let seed = generate_seed_from_seed_phrase_and_passphrase(&seed_phrase, &passphrase);
+            let derivation_path = parse_derivation_input(&derivation)?;
+            derive_keypair(&seed, &derivation_path)?
+        } else {
+            keypair_from_seed_phrase_and_passphrase(&seed_phrase, &passphrase)?
+        }
     } else {
         let sanitized = sanitize_seed_phrase(seed_phrase);
         let parse_language_fn = || {
@@ -317,8 +330,14 @@ pub fn keypair_from_seed_phrase(
         };
         let mnemonic = parse_language_fn()?;
         let passphrase = prompt_passphrase(&passphrase_prompt)?;
+        let derivation = prompt_password_stderr(&derivation_prompt)?;
         let seed = Seed::new(&mnemonic, &passphrase);
-        keypair_from_seed(seed.as_bytes())?
+        if !derivation.is_empty() {
+            let derivation_path = parse_derivation_input(&derivation)?;
+            derive_keypair(seed.as_bytes(), &derivation_path)?
+        } else {
+            keypair_from_seed(seed.as_bytes())?
+        }
     };
 
     if confirm_pubkey {

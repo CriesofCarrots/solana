@@ -338,6 +338,10 @@ impl DerivationPathComponent {
     pub fn as_u32(&self) -> u32 {
         self.0
     }
+
+    pub fn as_plain_u32(&self) -> u32 {
+        self.0 & !Self::HARDENED_BIT
+    }
 }
 
 impl From<u32> for DerivationPathComponent {

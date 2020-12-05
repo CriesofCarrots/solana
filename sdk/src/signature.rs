@@ -56,6 +56,10 @@ impl Keypair {
     pub fn secret(&self) -> &ed25519_dalek::SecretKey {
         &self.0.secret
     }
+
+    pub fn from_parts(secret: ed25519_dalek::SecretKey, public: ed25519_dalek::PublicKey) -> Self {
+        Keypair(ed25519_dalek::Keypair { secret, public })
+    }
 }
 
 #[repr(transparent)]
@@ -388,10 +392,10 @@ pub fn keypair_from_seed(seed: &[u8]) -> Result<Keypair, Box<dyn error::Error>> 
     Ok(Keypair(dalek_keypair))
 }
 
-pub fn keypair_from_seed_phrase_and_passphrase(
+pub fn generate_seed_from_seed_phrase_and_passphrase(
     seed_phrase: &str,
     passphrase: &str,
-) -> Result<Keypair, Box<dyn error::Error>> {
+) -> Vec<u8> {
     const PBKDF2_ROUNDS: usize = 2048;
     const PBKDF2_BYTES: usize = 64;
 
@@ -404,7 +408,17 @@ pub fn keypair_from_seed_phrase_and_passphrase(
         PBKDF2_ROUNDS,
         &mut seed,
     );
-    keypair_from_seed(&seed[..])
+    seed
+}
+
+pub fn keypair_from_seed_phrase_and_passphrase(
+    seed_phrase: &str,
+    passphrase: &str,
+) -> Result<Keypair, Box<dyn error::Error>> {
+    keypair_from_seed(&generate_seed_from_seed_phrase_and_passphrase(
+        seed_phrase,
+        passphrase,
+    ))
 }
 
 #[cfg(test)]
