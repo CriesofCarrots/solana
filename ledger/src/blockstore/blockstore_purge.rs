@@ -296,6 +296,8 @@ impl Blockstore {
                 if let Some(&signature) = transaction.signatures.get(0) {
                     batch.delete::<cf::TransactionStatus>((0, signature, slot))?;
                     batch.delete::<cf::TransactionStatus>((1, signature, slot))?;
+                    batch.delete::<cf::TransactionStatusPOC0>((0, signature, slot))?;
+                    batch.delete::<cf::TransactionStatusPOC1>((0, signature, slot))?;
                     for pubkey in transaction.message.account_keys {
                         batch.delete::<cf::AddressSignatures>((0, pubkey, slot, signature))?;
                         batch.delete::<cf::AddressSignatures>((1, pubkey, slot, signature))?;
@@ -328,6 +330,13 @@ impl Blockstore {
             w_active_transaction_status_index,
             to_slot,
         )? {
+            if index == 0 {
+                *columns_purged &= self.db.drop_cf::<cf::TransactionStatusPOC0>().is_ok()
+                    & self.db.create_cf::<cf::TransactionStatusPOC0>().is_ok();
+            } else {
+                *columns_purged &= self.db.drop_cf::<cf::TransactionStatusPOC1>().is_ok()
+                    & self.db.create_cf::<cf::TransactionStatusPOC1>().is_ok();
+            }
             *columns_purged &= self
                 .db
                 .delete_range_cf::<cf::TransactionStatus>(write_batch, index, index + 1)
@@ -499,7 +508,7 @@ pub mod tests {
             for x in 0..max_slot {
                 let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
                 blockstore
-                    .write_transaction_status(
+                    .write_transaction_status_deprecated(
                         x,
                         Signature::new(&random_bytes),
                         vec![&Pubkey::new(&random_bytes[0..32])],
@@ -514,7 +523,7 @@ pub mod tests {
             for x in max_slot..2 * max_slot {
                 let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
                 blockstore
-                    .write_transaction_status(
+                    .write_transaction_status_deprecated(
                         x,
                         Signature::new(&random_bytes),
                         vec![&Pubkey::new(&random_bytes[0..32])],
@@ -551,7 +560,7 @@ pub mod tests {
             for _ in 0..5 {
                 let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
                 blockstore
-                    .write_transaction_status(
+                    .write_transaction_status_deprecated(
                         slot,
                         Signature::new(&random_bytes),
                         vec![&Pubkey::new(&random_bytes[0..32])],
@@ -740,7 +749,7 @@ pub mod tests {
                 .collect::<Vec<Signature>>()[0];
             let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
             blockstore
-                .write_transaction_status(
+                .write_transaction_status_deprecated(
                     x,
                     signature,
                     vec![&Pubkey::new(&random_bytes[0..32])],
@@ -776,7 +785,7 @@ pub mod tests {
                 .collect::<Vec<Signature>>()[0];
             let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
             blockstore
-                .write_transaction_status(
+                .write_transaction_status_deprecated(
                     x,
                     signature,
                     vec![&Pubkey::new(&random_bytes[0..32])],
