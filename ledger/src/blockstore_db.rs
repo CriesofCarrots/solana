@@ -57,6 +57,10 @@ const BLOCKTIME_CF: &str = "blocktime";
 /// Column family for Performance Samples
 const PERF_SAMPLES_CF: &str = "perf_samples";
 
+/// Column families for Transaction Status POC
+const TRANSACTION_STATUS_POC_0_CF: &str = "transaction_status_poc_0";
+const TRANSACTION_STATUS_POC_1_CF: &str = "transaction_status_poc_1";
+
 #[derive(Error, Debug)]
 pub enum BlockstoreError {
     ShredForIndexExists,
@@ -150,6 +154,13 @@ pub mod columns {
     #[derive(Debug)]
     /// The performance samples column
     pub struct PerfSamples;
+
+    /// Columns for Transaction Status POC
+    #[derive(Debug)]
+    pub struct TransactionStatusPOC0;
+
+    #[derive(Debug)]
+    pub struct TransactionStatusPOC1;
 }
 
 pub enum AccessType {
@@ -213,7 +224,7 @@ impl Rocks {
         use columns::{
             AddressSignatures, Blocktime, DeadSlots, DuplicateSlots, ErasureMeta, Index, Orphans,
             PerfSamples, Rewards, Root, ShredCode, ShredData, SlotMeta, TransactionStatus,
-            TransactionStatusIndex,
+            TransactionStatusIndex, TransactionStatusPOC0, TransactionStatusPOC1,
         };
 
         fs::create_dir_all(&path)?;
@@ -259,6 +270,11 @@ impl Rocks {
         let perf_samples_cf_descriptor =
             ColumnFamilyDescriptor::new(PerfSamples::NAME, get_cf_options(&access_type));
 
+        let transaction_status_poc_0_cf_descriptor =
+            ColumnFamilyDescriptor::new(TransactionStatusPOC0::NAME, get_cf_options(&access_type));
+        let transaction_status_poc_1_cf_descriptor =
+            ColumnFamilyDescriptor::new(TransactionStatusPOC1::NAME, get_cf_options(&access_type));
+
         let cfs = vec![
             (SlotMeta::NAME, meta_cf_descriptor),
             (DeadSlots::NAME, dead_slots_cf_descriptor),
@@ -278,6 +294,14 @@ impl Rocks {
             (Rewards::NAME, rewards_cf_descriptor),
             (Blocktime::NAME, blocktime_cf_descriptor),
             (PerfSamples::NAME, perf_samples_cf_descriptor),
+            (
+                TransactionStatusPOC0::NAME,
+                transaction_status_poc_0_cf_descriptor,
+            ),
+            (
+                TransactionStatusPOC1::NAME,
+                transaction_status_poc_1_cf_descriptor,
+            ),
         ];
 
         // Open the database
@@ -317,7 +341,7 @@ impl Rocks {
         use columns::{
             AddressSignatures, Blocktime, DeadSlots, DuplicateSlots, ErasureMeta, Index, Orphans,
             PerfSamples, Rewards, Root, ShredCode, ShredData, SlotMeta, TransactionStatus,
-            TransactionStatusIndex,
+            TransactionStatusIndex, TransactionStatusPOC0, TransactionStatusPOC1,
         };
 
         vec![
@@ -336,6 +360,8 @@ impl Rocks {
             Rewards::NAME,
             Blocktime::NAME,
             PerfSamples::NAME,
+            TransactionStatusPOC0::NAME,
+            TransactionStatusPOC1::NAME,
         ]
     }
 
@@ -348,7 +374,18 @@ impl Rocks {
     fn cf_handle(&self, cf: &str) -> ColumnFamily {
         self.0
             .cf_handle(cf)
-            .expect("should never get an unknown column")
+            .expect(&format!("should never get an unknown column {}", cf))
+    }
+
+    fn drop_cf(&self, cf: &str) -> Result<()> {
+        self.0.drop_cf(cf)?;
+        Ok(())
+    }
+
+    fn create_cf(&self, cf: &str) -> Result<()> {
+        let opts = get_cf_options(&AccessType::PrimaryOnly);
+        self.0.create_cf(cf, &opts)?;
+        Ok(())
     }
 
     fn get_cf(&self, cf: &ColumnFamily, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -429,6 +466,14 @@ impl TypedColumn for columns::TransactionStatusIndex {
     type Type = blockstore_meta::TransactionStatusIndexMeta;
 }
 
+impl TypedColumn for columns::TransactionStatusPOC0 {
+    type Type = TransactionStatusMeta;
+}
+
+impl TypedColumn for columns::TransactionStatusPOC1 {
+    type Type = TransactionStatusMeta;
+}
+
 pub trait ProtobufColumn: Column {
     type Type: prost::Message + Default;
 }
@@ -490,6 +535,76 @@ impl Column for columns::TransactionStatus {
 
 impl ColumnName for columns::TransactionStatus {
     const NAME: &'static str = TRANSACTION_STATUS_CF;
+}
+
+impl Column for columns::TransactionStatusPOC0 {
+    type Index = (u64, Signature, Slot);
+
+    fn key((index, signature, slot): (u64, Signature, Slot)) -> Vec<u8> {
+        let mut key = vec![0; 8 + 64 + 8]; // size_of u64 + size_of Signature + size_of Slot
+        BigEndian::write_u64(&mut key[0..8], index);
+        key[8..72].clone_from_slice(&signature.as_ref()[0..64]);
+        BigEndian::write_u64(&mut key[72..80], slot);
+        key
+    }
+
+    fn index(key: &[u8]) -> (u64, Signature, Slot) {
+        if key.len() != 80 {
+            Self::as_index(0)
+        } else {
+            let index = BigEndian::read_u64(&key[0..8]);
+            let signature = Signature::new(&key[8..72]);
+            let slot = BigEndian::read_u64(&key[72..80]);
+            (index, signature, slot)
+        }
+    }
+
+    fn primary_index(index: Self::Index) -> u64 {
+        index.0
+    }
+
+    fn as_index(index: u64) -> Self::Index {
+        (index, Signature::default(), 0)
+    }
+}
+
+impl ColumnName for columns::TransactionStatusPOC0 {
+    const NAME: &'static str = TRANSACTION_STATUS_POC_0_CF;
+}
+
+impl Column for columns::TransactionStatusPOC1 {
+    type Index = (u64, Signature, Slot);
+
+    fn key((index, signature, slot): (u64, Signature, Slot)) -> Vec<u8> {
+        let mut key = vec![0; 8 + 64 + 8]; // size_of u64 + size_of Signature + size_of Slot
+        BigEndian::write_u64(&mut key[0..8], index);
+        key[8..72].clone_from_slice(&signature.as_ref()[0..64]);
+        BigEndian::write_u64(&mut key[72..80], slot);
+        key
+    }
+
+    fn index(key: &[u8]) -> (u64, Signature, Slot) {
+        if key.len() != 80 {
+            Self::as_index(0)
+        } else {
+            let index = BigEndian::read_u64(&key[0..8]);
+            let signature = Signature::new(&key[8..72]);
+            let slot = BigEndian::read_u64(&key[72..80]);
+            (index, signature, slot)
+        }
+    }
+
+    fn primary_index(index: Self::Index) -> u64 {
+        index.0
+    }
+
+    fn as_index(index: u64) -> Self::Index {
+        (index, Signature::default(), 0)
+    }
+}
+
+impl ColumnName for columns::TransactionStatusPOC1 {
+    const NAME: &'static str = TRANSACTION_STATUS_POC_1_CF;
 }
 
 impl Column for columns::AddressSignatures {
@@ -773,6 +888,20 @@ impl Database {
         Ok(iter.map(|(key, value)| (C::index(&key), value)))
     }
 
+    pub fn drop_cf<C: ColumnName>(&self) -> Result<()>
+    where
+        C: Column + ColumnName,
+    {
+        self.backend.drop_cf(C::NAME)
+    }
+
+    pub fn create_cf<C: ColumnName>(&self) -> Result<()>
+    where
+        C: Column + ColumnName,
+    {
+        self.backend.create_cf(C::NAME)
+    }
+
     #[inline]
     pub fn cf_handle<C: ColumnName>(&self) -> ColumnFamily
     where
@@ -901,7 +1030,7 @@ where
 
     #[cfg(test)]
     pub fn is_empty(&self) -> Result<bool> {
-        let mut iter = self.backend.raw_iterator_cf(self.handle());
+        let mut iter = self.backend.raw_iterator_cf(&self.handle());
         iter.seek_to_first();
         Ok(!iter.valid())
     }

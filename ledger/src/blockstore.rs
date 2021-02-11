@@ -139,6 +139,9 @@ pub struct Blockstore {
     pub completed_slots_senders: Vec<SyncSender<Vec<Slot>>>,
     pub lowest_cleanup_slot: Arc<RwLock<u64>>,
     no_compaction: bool,
+
+    transaction_status_poc_0_cf: LedgerColumn<cf::TransactionStatusPOC0>,
+    transaction_status_poc_1_cf: LedgerColumn<cf::TransactionStatusPOC1>,
 }
 
 pub struct IndexMetaWorkingSetEntry {
@@ -300,6 +303,9 @@ impl Blockstore {
         let blocktime_cf = db.column();
         let perf_samples_cf = db.column();
 
+        let transaction_status_poc_0_cf = db.column();
+        let transaction_status_poc_1_cf = db.column();
+
         let db = Arc::new(db);
 
         // Get max root or 0 if it doesn't exist
@@ -351,6 +357,8 @@ impl Blockstore {
             last_root,
             lowest_cleanup_slot: Arc::new(RwLock::new(0)),
             no_compaction: false,
+            transaction_status_poc_0_cf,
+            transaction_status_poc_1_cf,
         };
         if initialize_transaction_status_index {
             blockstore.initialize_transaction_status_index()?;
@@ -1853,15 +1861,60 @@ impl Blockstore {
         index: (Signature, Slot),
     ) -> Result<Option<TransactionStatusMeta>> {
         let (signature, slot) = index;
-        let result = self.transaction_status_cf.get((0, signature, slot))?;
+        let result = self.transaction_status_poc_0_cf.get((0, signature, slot))?;
         if result.is_none() {
-            Ok(self.transaction_status_cf.get((1, signature, slot))?)
+            let result = self.transaction_status_poc_1_cf.get((0, signature, slot))?;
+            if result.is_none() {
+                let result = self.transaction_status_cf.get((0, signature, slot))?;
+                if result.is_none() {
+                    Ok(self.transaction_status_cf.get((1, signature, slot))?)
+                } else {
+                    Ok(result)
+                }
+            } else {
+                Ok(result)
+            }
         } else {
             Ok(result)
         }
     }
 
     pub fn write_transaction_status(
+        &self,
+        slot: Slot,
+        signature: Signature,
+        writable_keys: Vec<&Pubkey>,
+        readonly_keys: Vec<&Pubkey>,
+        status: &TransactionStatusMeta,
+    ) -> Result<()> {
+        // This write lock prevents interleaving issues with the transaction_status_index_cf by gating
+        // writes to that column
+        let mut w_active_transaction_status_index =
+            self.active_transaction_status_index.write().unwrap();
+        let primary_index = self.get_primary_index(slot, &mut w_active_transaction_status_index)?;
+        if primary_index == 0 {
+            self.transaction_status_poc_0_cf
+                .put((0, signature, slot), status)?;
+        } else {
+            self.transaction_status_poc_1_cf
+                .put((0, signature, slot), status)?;
+        }
+        for address in writable_keys {
+            self.address_signatures_cf.put(
+                (primary_index, *address, slot, signature),
+                &AddressSignatureMeta { writeable: true },
+            )?;
+        }
+        for address in readonly_keys {
+            self.address_signatures_cf.put(
+                (primary_index, *address, slot, signature),
+                &AddressSignatureMeta { writeable: false },
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn write_transaction_status_deprecated(
         &self,
         slot: Slot,
         signature: Signature,
@@ -1898,6 +1951,40 @@ impl Blockstore {
         signature: Signature,
     ) -> Result<(Option<(Slot, TransactionStatusMeta)>, u64)> {
         let mut counter = 0;
+
+        // First column
+        let index_iterator = self.transaction_status_poc_0_cf.iter(IteratorMode::From(
+            (0, signature, 0),
+            IteratorDirection::Forward,
+        ))?;
+        for ((_, sig, slot), data) in index_iterator {
+            counter += 1;
+            if sig != signature {
+                break;
+            }
+            if self.is_root(slot) {
+                let status: TransactionStatusMeta = deserialize(&data)?;
+                return Ok((Some((slot, status)), counter));
+            }
+        }
+
+        // Second column
+        let index_iterator = self.transaction_status_poc_1_cf.iter(IteratorMode::From(
+            (0, signature, 0),
+            IteratorDirection::Forward,
+        ))?;
+        for ((_, sig, slot), data) in index_iterator {
+            counter += 1;
+            if sig != signature {
+                break;
+            }
+            if self.is_root(slot) {
+                let status: TransactionStatusMeta = deserialize(&data)?;
+                return Ok((Some((slot, status)), counter));
+            }
+        }
+
+        // Old columns
         for transaction_status_cf_primary_index in 0..=1 {
             let index_iterator = self.transaction_status_cf.iter(IteratorMode::From(
                 (transaction_status_cf_primary_index, signature, 0),
@@ -5889,7 +5976,7 @@ pub mod tests {
             for _ in 0..5 {
                 let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
                 blockstore
-                    .write_transaction_status(
+                    .write_transaction_status_deprecated(
                         slot0,
                         Signature::new(&random_bytes),
                         vec![&Pubkey::new(&random_bytes[0..32])],
@@ -5955,7 +6042,7 @@ pub mod tests {
             for _ in 0..5 {
                 let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
                 blockstore
-                    .write_transaction_status(
+                    .write_transaction_status_deprecated(
                         slot1,
                         Signature::new(&random_bytes),
                         vec![&Pubkey::new(&random_bytes[0..32])],
@@ -6317,7 +6404,7 @@ pub mod tests {
             for x in 1..5 {
                 let signature = Signature::new(&[x; 64]);
                 blockstore
-                    .write_transaction_status(
+                    .write_transaction_status_deprecated(
                         slot0,
                         signature,
                         vec![&address0],
@@ -6332,7 +6419,7 @@ pub mod tests {
             for x in 5..9 {
                 let signature = Signature::new(&[x; 64]);
                 blockstore
-                    .write_transaction_status(
+                    .write_transaction_status_deprecated(
                         slot1,
                         signature,
                         vec![&address0],
@@ -6425,7 +6512,7 @@ pub mod tests {
                 let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
                 let signature = Signature::new(&random_bytes);
                 blockstore
-                    .write_transaction_status(
+                    .write_transaction_status_deprecated(
                         slot,
                         signature,
                         vec![&address0],
@@ -6485,7 +6572,7 @@ pub mod tests {
                     for transaction in &entry.transactions {
                         assert_eq!(transaction.signatures.len(), 1);
                         blockstore
-                            .write_transaction_status(
+                            .write_transaction_status_deprecated(
                                 slot,
                                 transaction.signatures[0],
                                 transaction.message.account_keys.iter().collect(),
