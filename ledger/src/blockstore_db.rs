@@ -345,7 +345,7 @@ impl Rocks {
         Ok(())
     }
 
-    fn cf_handle(&self, cf: &str) -> &ColumnFamily {
+    fn cf_handle(&self, cf: &str) -> ColumnFamily {
         self.0
             .cf_handle(cf)
             .expect("should never get an unknown column")
@@ -723,9 +723,9 @@ where
     column: PhantomData<C>,
 }
 
-pub struct WriteBatch<'a> {
+pub struct WriteBatch {
     write_batch: RWriteBatch,
-    map: HashMap<&'static str, &'a ColumnFamily>,
+    map: HashMap<&'static str, ColumnFamily>,
 }
 
 impl Database {
@@ -752,7 +752,7 @@ impl Database {
     where
         C: TypedColumn + ColumnName,
     {
-        if let Some(serialized_value) = self.backend.get_cf(self.cf_handle::<C>(), &C::key(key))? {
+        if let Some(serialized_value) = self.backend.get_cf(&self.cf_handle::<C>(), &C::key(key))? {
             let value = deserialize(&serialized_value)?;
 
             Ok(Some(value))
@@ -769,12 +769,12 @@ impl Database {
         C: Column + ColumnName,
     {
         let cf = self.cf_handle::<C>();
-        let iter = self.backend.iterator_cf::<C>(cf, iterator_mode);
+        let iter = self.backend.iterator_cf::<C>(&cf, iterator_mode);
         Ok(iter.map(|(key, value)| (C::index(&key), value)))
     }
 
     #[inline]
-    pub fn cf_handle<C: ColumnName>(&self) -> &ColumnFamily
+    pub fn cf_handle<C: ColumnName>(&self) -> ColumnFamily
     where
         C: Column + ColumnName,
     {
@@ -824,7 +824,7 @@ impl Database {
         let cf = self.cf_handle::<C>();
         let from_index = C::as_index(from);
         let to_index = C::as_index(to);
-        batch.delete_range_cf::<C>(cf, from_index, to_index)
+        batch.delete_range_cf::<C>(&cf, from_index, to_index)
     }
 
     pub fn is_primary_access(&self) -> bool {
@@ -837,7 +837,7 @@ where
     C: Column + ColumnName,
 {
     pub fn get_bytes(&self, key: C::Index) -> Result<Option<Vec<u8>>> {
-        self.backend.get_cf(self.handle(), &C::key(key))
+        self.backend.get_cf(&self.handle(), &C::key(key))
     }
 
     pub fn iter(
@@ -845,7 +845,7 @@ where
         iterator_mode: IteratorMode<C::Index>,
     ) -> Result<impl Iterator<Item = (C::Index, Box<[u8]>)> + '_> {
         let cf = self.handle();
-        let iter = self.backend.iterator_cf::<C>(cf, iterator_mode);
+        let iter = self.backend.iterator_cf::<C>(&cf, iterator_mode);
         Ok(iter.map(|(key, value)| (C::index(&key), value)))
     }
 
@@ -890,12 +890,12 @@ where
         let cf = self.handle();
         let from = Some(C::key(C::as_index(from)));
         let to = Some(C::key(C::as_index(to)));
-        self.backend.0.compact_range_cf(cf, from, to);
+        self.backend.0.compact_range_cf(&cf, from, to);
         Ok(true)
     }
 
     #[inline]
-    pub fn handle(&self) -> &ColumnFamily {
+    pub fn handle(&self) -> ColumnFamily {
         self.backend.cf_handle(C::NAME)
     }
 
@@ -907,7 +907,7 @@ where
     }
 
     pub fn put_bytes(&self, key: C::Index, value: &[u8]) -> Result<()> {
-        self.backend.put_cf(self.handle(), &C::key(key), value)
+        self.backend.put_cf(&self.handle(), &C::key(key), value)
     }
 }
 
@@ -916,7 +916,7 @@ where
     C: TypedColumn + ColumnName,
 {
     pub fn get(&self, key: C::Index) -> Result<Option<C::Type>> {
-        if let Some(serialized_value) = self.backend.get_cf(self.handle(), &C::key(key))? {
+        if let Some(serialized_value) = self.backend.get_cf(&self.handle(), &C::key(key))? {
             let value = deserialize(&serialized_value)?;
 
             Ok(Some(value))
@@ -929,7 +929,7 @@ where
         let serialized_value = serialize(value)?;
 
         self.backend
-            .put_cf(self.handle(), &C::key(key), &serialized_value)
+            .put_cf(&self.handle(), &C::key(key), &serialized_value)
     }
 }
 
@@ -941,7 +941,7 @@ where
         &self,
         key: C::Index,
     ) -> Result<Option<C::Type>> {
-        if let Some(serialized_value) = self.backend.get_cf(self.handle(), &C::key(key))? {
+        if let Some(serialized_value) = self.backend.get_cf(&self.handle(), &C::key(key))? {
             let value = match C::Type::decode(&serialized_value[..]) {
                 Ok(value) => value,
                 Err(_) => deserialize::<T>(&serialized_value)?.into(),
@@ -953,7 +953,7 @@ where
     }
 
     pub fn get_protobuf(&self, key: C::Index) -> Result<Option<C::Type>> {
-        if let Some(serialized_value) = self.backend.get_cf(self.handle(), &C::key(key))? {
+        if let Some(serialized_value) = self.backend.get_cf(&self.handle(), &C::key(key))? {
             Ok(Some(C::Type::decode(&serialized_value[..])?))
         } else {
             Ok(None)
@@ -963,19 +963,20 @@ where
     pub fn put_protobuf(&self, key: C::Index, value: &C::Type) -> Result<()> {
         let mut buf = Vec::with_capacity(value.encoded_len());
         value.encode(&mut buf)?;
-        self.backend.put_cf(self.handle(), &C::key(key), &buf)
+        self.backend.put_cf(&self.handle(), &C::key(key), &buf)
     }
 }
 
-impl<'a> WriteBatch<'a> {
+impl WriteBatch {
     pub fn put_bytes<C: Column + ColumnName>(&mut self, key: C::Index, bytes: &[u8]) -> Result<()> {
         self.write_batch
-            .put_cf(self.get_cf::<C>(), &C::key(key), bytes);
+            .put_cf(&self.get_cf::<C>(), &C::key(key), bytes);
         Ok(())
     }
 
     pub fn delete<C: Column + ColumnName>(&mut self, key: C::Index) -> Result<()> {
-        self.write_batch.delete_cf(self.get_cf::<C>(), &C::key(key));
+        self.write_batch
+            .delete_cf(&self.get_cf::<C>(), &C::key(key));
         Ok(())
     }
 
@@ -986,13 +987,13 @@ impl<'a> WriteBatch<'a> {
     ) -> Result<()> {
         let serialized_value = serialize(&value)?;
         self.write_batch
-            .put_cf(self.get_cf::<C>(), &C::key(key), &serialized_value);
+            .put_cf(&self.get_cf::<C>(), &C::key(key), &serialized_value);
         Ok(())
     }
 
     #[inline]
-    fn get_cf<C: Column + ColumnName>(&self) -> &'a ColumnFamily {
-        self.map[C::NAME]
+    fn get_cf<C: Column + ColumnName>(&self) -> ColumnFamily {
+        self.map[C::NAME].clone()
     }
 
     pub fn delete_range_cf<C: Column>(
