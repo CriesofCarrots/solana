@@ -1652,7 +1652,7 @@ impl Blockstore {
     ) -> Vec<u64> {
         if let Ok(mut db_iterator) = self
             .db
-            .raw_iterator_cf(self.db.cf_handle::<cf::ShredData>())
+            .raw_iterator_cf(&self.db.cf_handle::<cf::ShredData>())
         {
             Self::find_missing_indexes::<cf::ShredData>(
                 &mut db_iterator,
