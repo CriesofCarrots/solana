@@ -60,6 +60,8 @@ trees = "0.2.1"
 version = "0.15.0"
 default-features = false
 features = ["lz4"]
+git = "https://github.com/carllin/rust-rocksdb"
+branch = "DropCf"
 
 [dev-dependencies]
 assert_matches = "1.3.0"

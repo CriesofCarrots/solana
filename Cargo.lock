@@ -252,26 +252,22 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.54.0"
+version = "0.55.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66c0bb6167449588ff70803f4127f0684f9063097eca5016f37eb52b92c2cf36"
+checksum = "75b13ce559e6433d360c26305643803cb52cfbabbc2b9c47ce04a58493dfb443"
 dependencies = [
  "bitflags",
  "cexpr",
  "cfg-if 0.1.10",
  "clang-sys",
- "clap",
- "env_logger 0.7.1",
  "lazy_static",
  "lazycell",
- "log 0.4.11",
  "peeking_take_while",
  "proc-macro2 1.0.24",
  "quote 1.0.6",
  "regex",
  "rustc-hash",
  "shlex",
- "which",
 ]
 
 [[package]]
@@ -530,13 +526,13 @@ dependencies = [
 
 [[package]]
 name = "clang-sys"
-version = "0.29.3"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe6837df1d5cba2397b835c8530f51723267e16abbf83892e9e5af4f0e5dd10a"
+checksum = "5cb92721cb37482245ed88428f72253ce422b3b4ee169c70a0642521bb5db4cc"
 dependencies = [
  "glob",
  "libc",
- "libloading 0.5.2",
+ "libloading",
 ]
 
 [[package]]
@@ -2058,16 +2054,6 @@ checksum = "1482821306169ec4d07f6aca392a4681f66c75c9918aa49641a2595db64053cb"
 
 [[package]]
 name = "libloading"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b111a074963af1d37a139918ac6d49ad1d0d5e47f72fd55388619691a7d753"
-dependencies = [
- "cc",
- "winapi 0.3.8",
-]
-
-[[package]]
-name = "libloading"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2cadb8e769f070c45df05c78c7520eb4cd17061d4ab262e43cfc68b4d00ac71c"
@@ -2077,9 +2063,8 @@ dependencies = [
 
 [[package]]
 name = "librocksdb-sys"
-version = "6.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb5b56f651c204634b936be2f92dbb42c36867e00ff7fe2405591f3b9fa66f09"
+version = "6.15.4"
+source = "git+https://github.com/carllin/rust-rocksdb?branch=DropCf#5da652bf89ef40ccde81f898d20f03ec1aa06d46"
 dependencies = [
  "bindgen",
  "cc",
@@ -3277,8 +3262,7 @@ dependencies = [
 [[package]]
 name = "rocksdb"
 version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23d83c02c429044d58474eaf5ae31e062d0de894e21125b47437ec0edc1397e6"
+source = "git+https://github.com/carllin/rust-rocksdb?branch=DropCf#5da652bf89ef40ccde81f898d20f03ec1aa06d46"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -4847,7 +4831,7 @@ dependencies = [
  "itertools 0.9.0",
  "lazy_static",
  "libc",
- "libloading 0.6.2",
+ "libloading",
  "log 0.4.11",
  "memmap2",
  "num-derive",
@@ -6710,15 +6694,6 @@ dependencies = [
  "tokio-io",
  "tokio-tcp",
  "tokio-tls 0.2.1",
-]
-
-[[package]]
-name = "which"
-version = "3.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
-dependencies = [
- "libc",
 ]
 
 [[package]]
