@@ -550,6 +550,56 @@ pub mod tests {
     }
 
     #[test]
+    fn test_purge_front_of_ledger_poc() {
+        let blockstore_path = get_tmp_ledger_path!();
+        {
+            let blockstore = Blockstore::open(&blockstore_path).unwrap();
+            let max_slot = 10;
+            for x in 0..max_slot {
+                let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+                blockstore
+                    .write_transaction_status(
+                        x,
+                        Signature::new(&random_bytes),
+                        vec![&Pubkey::new(&random_bytes[0..32])],
+                        vec![&Pubkey::new(&random_bytes[32..])],
+                        &TransactionStatusMeta::default(),
+                    )
+                    .unwrap();
+            }
+            // Purge to freeze index 0
+            blockstore.run_purge(0, 1, PurgeType::PrimaryIndex).unwrap();
+
+            for x in max_slot..2 * max_slot {
+                let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+                blockstore
+                    .write_transaction_status_deprecated(
+                        x,
+                        Signature::new(&random_bytes),
+                        vec![&Pubkey::new(&random_bytes[0..32])],
+                        vec![&Pubkey::new(&random_bytes[32..])],
+                        &TransactionStatusMeta::default(),
+                    )
+                    .unwrap();
+            }
+
+            // Purging range outside of TransactionStatus max slots should not affect TransactionStatus data
+            blockstore.run_purge(20, 30, PurgeType::Exact).unwrap();
+
+            let mut status_entry_iterator = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            let entry = status_entry_iterator.next().unwrap().0;
+            assert_eq!(entry.0, 0);
+        }
+        Blockstore::destroy(&blockstore_path).expect("Expected successful database destruction");
+    }
+
+    #[test]
     #[allow(clippy::cognitive_complexity)]
     fn test_purge_transaction_status() {
         let blockstore_path = get_tmp_ledger_path!();
@@ -696,6 +746,121 @@ pub mod tests {
             assert_eq!(padding_entry.0, 2);
             assert_eq!(padding_entry.2, 0);
             assert!(address_transactions_iterator.next().is_none());
+            assert_eq!(
+                transaction_status_index_cf.get(0).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 0,
+                    frozen: false,
+                }
+            );
+            assert_eq!(
+                transaction_status_index_cf.get(1).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 0,
+                    frozen: true,
+                }
+            );
+        }
+        Blockstore::destroy(&blockstore_path).expect("Expected successful database destruction");
+    }
+
+    #[test]
+    #[allow(clippy::cognitive_complexity)]
+    fn test_purge_transaction_status_poc() {
+        let blockstore_path = get_tmp_ledger_path!();
+        {
+            let blockstore = Blockstore::open(&blockstore_path).unwrap();
+            let transaction_status_index_cf = blockstore.db.column::<cf::TransactionStatusIndex>();
+            let slot = 10;
+            for _ in 0..5 {
+                let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+                blockstore
+                    .write_transaction_status(
+                        slot,
+                        Signature::new(&random_bytes),
+                        vec![&Pubkey::new(&random_bytes[0..32])],
+                        vec![&Pubkey::new(&random_bytes[32..])],
+                        &TransactionStatusMeta::default(),
+                    )
+                    .unwrap();
+            }
+            // Purge to freeze index 0
+            blockstore.run_purge(0, 1, PurgeType::PrimaryIndex).unwrap();
+            let mut status_entry_iterator = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..5 {
+                let entry = status_entry_iterator.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert_eq!(entry.2, slot);
+            }
+            assert_eq!(
+                transaction_status_index_cf.get(0).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 10,
+                    frozen: true,
+                }
+            );
+
+            // Low purge should not affect state
+            blockstore.run_purge(0, 5, PurgeType::PrimaryIndex).unwrap();
+            let mut status_entry_iterator = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..5 {
+                let entry = status_entry_iterator.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert_eq!(entry.2, slot);
+            }
+            assert_eq!(
+                transaction_status_index_cf.get(0).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 10,
+                    frozen: true,
+                }
+            );
+
+            // Test boundary conditions: < slot should not purge statuses; <= slot should
+            blockstore.run_purge(0, 9, PurgeType::PrimaryIndex).unwrap();
+            let mut status_entry_iterator = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..5 {
+                let entry = status_entry_iterator.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert_eq!(entry.2, slot);
+            }
+            assert_eq!(
+                transaction_status_index_cf.get(0).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 10,
+                    frozen: true,
+                }
+            );
+
+            blockstore
+                .run_purge(0, 10, PurgeType::PrimaryIndex)
+                .unwrap();
+            let mut status_entry_iterator = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            assert!(status_entry_iterator.next().is_none());
             assert_eq!(
                 transaction_status_index_cf.get(0).unwrap().unwrap(),
                 TransactionStatusIndexMeta {
@@ -1165,6 +1330,551 @@ pub mod tests {
 
     #[test]
     fn test_purge_special_columns_exact_no_sigs() {
+        let blockstore_path = get_tmp_ledger_path!();
+        {
+            let blockstore = Blockstore::open(&blockstore_path).unwrap();
+
+            let slot = 1;
+            let mut entries: Vec<Entry> = vec![];
+            for x in 0..5 {
+                let mut tx = Transaction::new_unsigned(Message::default());
+                tx.signatures = vec![];
+                entries.push(next_entry_mut(&mut Hash::default(), 0, vec![tx]));
+                let mut tick = create_ticks(1, 0, hash(&serialize(&x).unwrap()));
+                entries.append(&mut tick);
+            }
+            let shreds = entries_to_test_shreds(entries, slot, slot - 1, true, 0);
+            blockstore.insert_shreds(shreds, None, false).unwrap();
+
+            let mut write_batch = blockstore.db.batch().unwrap();
+            blockstore
+                .purge_special_columns_exact(&mut write_batch, slot, slot + 1)
+                .unwrap();
+        }
+        Blockstore::destroy(&blockstore_path).expect("Expected successful database destruction");
+    }
+
+    fn clear_and_repopulate_transaction_statuses_poc(
+        blockstore: &mut Blockstore,
+        index0_max_slot: u64,
+        index1_max_slot: u64,
+    ) {
+        assert!(index1_max_slot > index0_max_slot);
+        let mut write_batch = blockstore.db.batch().unwrap();
+        blockstore
+            .run_purge(0, index1_max_slot, PurgeType::PrimaryIndex)
+            .unwrap();
+        blockstore
+            .db
+            .drop_cf::<cf::TransactionStatusPOC0>()
+            .unwrap();
+        blockstore
+            .db
+            .create_cf::<cf::TransactionStatusPOC0>()
+            .unwrap();
+        blockstore
+            .db
+            .drop_cf::<cf::TransactionStatusPOC1>()
+            .unwrap();
+        blockstore
+            .db
+            .create_cf::<cf::TransactionStatusPOC1>()
+            .unwrap();
+        blockstore
+            .db
+            .delete_range_cf::<cf::TransactionStatusIndex>(&mut write_batch, 0, 3)
+            .unwrap();
+        blockstore.db.write(write_batch).unwrap();
+        blockstore.initialize_transaction_status_index().unwrap();
+        *blockstore.active_transaction_status_index.write().unwrap() = 0;
+
+        for x in 0..index0_max_slot + 1 {
+            let entries = make_slot_entries_with_transactions(1);
+            let shreds = entries_to_test_shreds(entries.clone(), x, x.saturating_sub(1), true, 0);
+            blockstore.insert_shreds(shreds, None, false).unwrap();
+            let signature = entries
+                .iter()
+                .cloned()
+                .filter(|entry| !entry.is_tick())
+                .flat_map(|entry| entry.transactions)
+                .map(|transaction| transaction.signatures[0])
+                .collect::<Vec<Signature>>()[0];
+            let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+            blockstore
+                .write_transaction_status(
+                    x,
+                    signature,
+                    vec![&Pubkey::new(&random_bytes[0..32])],
+                    vec![&Pubkey::new(&random_bytes[32..])],
+                    &TransactionStatusMeta::default(),
+                )
+                .unwrap();
+        }
+        // Freeze index 0
+        let mut write_batch = blockstore.db.batch().unwrap();
+        let mut w_active_transaction_status_index =
+            blockstore.active_transaction_status_index.write().unwrap();
+        blockstore
+            .toggle_transaction_status_index(
+                &mut write_batch,
+                &mut w_active_transaction_status_index,
+                index0_max_slot + 1,
+            )
+            .unwrap();
+        drop(w_active_transaction_status_index);
+        blockstore.db.write(write_batch).unwrap();
+
+        for x in index0_max_slot + 1..index1_max_slot + 1 {
+            let entries = make_slot_entries_with_transactions(1);
+            let shreds = entries_to_test_shreds(entries.clone(), x, x.saturating_sub(1), true, 0);
+            blockstore.insert_shreds(shreds, None, false).unwrap();
+            let signature: Signature = entries
+                .iter()
+                .cloned()
+                .filter(|entry| !entry.is_tick())
+                .flat_map(|entry| entry.transactions)
+                .map(|transaction| transaction.signatures[0])
+                .collect::<Vec<Signature>>()[0];
+            let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+            blockstore
+                .write_transaction_status(
+                    x,
+                    signature,
+                    vec![&Pubkey::new(&random_bytes[0..32])],
+                    vec![&Pubkey::new(&random_bytes[32..])],
+                    &TransactionStatusMeta::default(),
+                )
+                .unwrap();
+        }
+        assert_eq!(
+            blockstore
+                .transaction_status_index_cf
+                .get(0)
+                .unwrap()
+                .unwrap(),
+            TransactionStatusIndexMeta {
+                max_slot: index0_max_slot,
+                frozen: true,
+            }
+        );
+        assert_eq!(
+            blockstore
+                .transaction_status_index_cf
+                .get(1)
+                .unwrap()
+                .unwrap(),
+            TransactionStatusIndexMeta {
+                max_slot: index1_max_slot,
+                frozen: false,
+            }
+        );
+    }
+
+    #[test]
+    #[allow(clippy::cognitive_complexity)]
+    fn test_purge_transaction_status_exact_poc() {
+        let blockstore_path = get_tmp_ledger_path!();
+        {
+            let mut blockstore = Blockstore::open(&blockstore_path).unwrap();
+            let index0_max_slot = 9;
+            let index1_max_slot = 19;
+
+            // Test purge outside bounds
+            clear_and_repopulate_transaction_statuses_poc(
+                &mut blockstore,
+                index0_max_slot,
+                index1_max_slot,
+            );
+            blockstore.run_purge(20, 22, PurgeType::Exact).unwrap();
+
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(0)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: index0_max_slot,
+                    frozen: true,
+                }
+            );
+            let mut status_entry_iterator_0 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..index0_max_slot + 1 {
+                let entry = status_entry_iterator_0.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+            }
+            drop(status_entry_iterator_0);
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(1)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: index1_max_slot,
+                    frozen: false,
+                }
+            );
+            let mut status_entry_iterator_1 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in index0_max_slot + 1..index1_max_slot + 1 {
+                let entry = status_entry_iterator_1.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+            }
+            drop(status_entry_iterator_1);
+
+            // Test purge inside index 0
+            clear_and_repopulate_transaction_statuses_poc(
+                &mut blockstore,
+                index0_max_slot,
+                index1_max_slot,
+            );
+            blockstore.run_purge(2, 4, PurgeType::Exact).unwrap();
+
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(0)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: index0_max_slot,
+                    frozen: true,
+                }
+            );
+            let mut status_entry_iterator_0 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..7 {
+                // 7 entries remaining
+                let entry = status_entry_iterator_0.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert!(entry.2 < 2 || entry.2 > 4);
+            }
+            drop(status_entry_iterator_0);
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(1)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: index1_max_slot,
+                    frozen: false,
+                }
+            );
+            let mut status_entry_iterator_1 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in index0_max_slot + 1..index1_max_slot + 1 {
+                let entry = status_entry_iterator_1.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+            }
+            drop(status_entry_iterator_1);
+
+            // Test purge inside index 0 at upper boundary
+            clear_and_repopulate_transaction_statuses_poc(
+                &mut blockstore,
+                index0_max_slot,
+                index1_max_slot,
+            );
+            blockstore
+                .run_purge(7, index0_max_slot, PurgeType::Exact)
+                .unwrap();
+
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(0)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 6,
+                    frozen: true,
+                }
+            );
+            let mut status_entry_iterator_0 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..7 {
+                // 7 entries remaining
+                let entry = status_entry_iterator_0.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert!(entry.2 < 7);
+            }
+            drop(status_entry_iterator_0);
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(1)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: index1_max_slot,
+                    frozen: false,
+                }
+            );
+            let mut status_entry_iterator_1 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in index0_max_slot + 1..index1_max_slot + 1 {
+                let entry = status_entry_iterator_1.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+            }
+            drop(status_entry_iterator_1);
+
+            // Test purge inside index 1 at lower boundary
+            clear_and_repopulate_transaction_statuses_poc(
+                &mut blockstore,
+                index0_max_slot,
+                index1_max_slot,
+            );
+            blockstore.run_purge(10, 12, PurgeType::Exact).unwrap();
+
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(0)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: index0_max_slot,
+                    frozen: true,
+                }
+            );
+            let mut status_entry_iterator_0 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..index0_max_slot + 1 {
+                let entry = status_entry_iterator_0.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+            }
+            drop(status_entry_iterator_0);
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(1)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: index1_max_slot,
+                    frozen: false,
+                }
+            );
+            let mut status_entry_iterator_1 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 13..index1_max_slot + 1 {
+                let entry = status_entry_iterator_1.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert!(entry.2 > 12);
+            }
+            drop(status_entry_iterator_1);
+
+            // Test purge across index boundaries
+            clear_and_repopulate_transaction_statuses_poc(
+                &mut blockstore,
+                index0_max_slot,
+                index1_max_slot,
+            );
+            blockstore.run_purge(7, 12, PurgeType::Exact).unwrap();
+
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(0)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 6,
+                    frozen: true,
+                }
+            );
+            let mut status_entry_iterator_0 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..7 {
+                // 7 entries remaining
+                let entry = status_entry_iterator_0.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert!(entry.2 < 7);
+            }
+            drop(status_entry_iterator_0);
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(1)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: index1_max_slot,
+                    frozen: false,
+                }
+            );
+            let mut status_entry_iterator_1 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 13..index1_max_slot + 1 {
+                let entry = status_entry_iterator_1.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert!(entry.2 > 12);
+            }
+            drop(status_entry_iterator_1);
+
+            // Test purge include complete index 1
+            clear_and_repopulate_transaction_statuses_poc(
+                &mut blockstore,
+                index0_max_slot,
+                index1_max_slot,
+            );
+            blockstore.run_purge(7, 22, PurgeType::Exact).unwrap();
+
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(0)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 6,
+                    frozen: true,
+                }
+            );
+            let mut status_entry_iterator_0 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            for _ in 0..7 {
+                // 7 entries remaining
+                let entry = status_entry_iterator_0.next().unwrap().0;
+                assert_eq!(entry.0, 0);
+                assert!(entry.2 < 7);
+            }
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(1)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 6,
+                    frozen: false,
+                }
+            );
+            assert!(status_entry_iterator_0.next().is_none());
+            drop(status_entry_iterator_0);
+            let mut status_entry_iterator_1 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            assert!(status_entry_iterator_1.next().is_none());
+            drop(status_entry_iterator_1);
+
+            // Test purge all
+            clear_and_repopulate_transaction_statuses_poc(
+                &mut blockstore,
+                index0_max_slot,
+                index1_max_slot,
+            );
+            blockstore.run_purge(0, 22, PurgeType::Exact).unwrap();
+
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(0)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 0,
+                    frozen: true,
+                }
+            );
+            assert_eq!(
+                blockstore
+                    .transaction_status_index_cf
+                    .get(1)
+                    .unwrap()
+                    .unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 0,
+                    frozen: false,
+                }
+            );
+
+            // no index 0 or index 1 entries remaining
+            let mut status_entry_iterator_0 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            assert!(status_entry_iterator_0.next().is_none());
+            drop(status_entry_iterator_0);
+            let mut status_entry_iterator_1 = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap();
+            assert!(status_entry_iterator_1.next().is_none());
+            drop(status_entry_iterator_1);
+        }
+        Blockstore::destroy(&blockstore_path).expect("Expected successful database destruction");
+    }
+
+    #[test]
+    fn test_purge_special_columns_exact_no_sigs_poc() {
         let blockstore_path = get_tmp_ledger_path!();
         {
             let blockstore = Blockstore::open(&blockstore_path).unwrap();
