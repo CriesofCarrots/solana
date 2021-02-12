@@ -6338,6 +6338,301 @@ pub mod tests {
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
+    fn test_transaction_status_index_poc() {
+        let blockstore_path = get_tmp_ledger_path!();
+        {
+            let blockstore = Blockstore::open(&blockstore_path).unwrap();
+            let transaction_status_index_cf = blockstore.db.column::<cf::TransactionStatusIndex>();
+            let slot0 = 10;
+
+            // Primary index column is initialized on Blockstore::open
+            assert!(transaction_status_index_cf.get(0).unwrap().is_some());
+            assert!(transaction_status_index_cf.get(1).unwrap().is_some());
+
+            for _ in 0..5 {
+                let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+                blockstore
+                    .write_transaction_status(
+                        slot0,
+                        Signature::new(&random_bytes),
+                        vec![&Pubkey::new(&random_bytes[0..32])],
+                        vec![&Pubkey::new(&random_bytes[32..])],
+                        &TransactionStatusMeta::default(),
+                    )
+                    .unwrap();
+            }
+
+            // New statuses bump index 0 max_slot
+            assert_eq!(
+                transaction_status_index_cf.get(0).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: slot0,
+                    frozen: false,
+                }
+            );
+            assert_eq!(
+                transaction_status_index_cf.get(1).unwrap().unwrap(),
+                TransactionStatusIndexMeta::default()
+            );
+
+            let first_status_entry = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap()
+                .next()
+                .unwrap()
+                .0;
+            assert_eq!(first_status_entry.0, 0);
+            assert_eq!(first_status_entry.2, slot0);
+
+            blockstore.run_purge(0, 8, PurgeType::PrimaryIndex).unwrap();
+            // First successful prune freezes index 0
+            assert_eq!(
+                transaction_status_index_cf.get(0).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: slot0,
+                    frozen: true,
+                }
+            );
+            assert_eq!(
+                transaction_status_index_cf.get(1).unwrap().unwrap(),
+                TransactionStatusIndexMeta::default()
+            );
+
+            let slot1 = 20;
+            for _ in 0..5 {
+                let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+                blockstore
+                    .write_transaction_status(
+                        slot1,
+                        Signature::new(&random_bytes),
+                        vec![&Pubkey::new(&random_bytes[0..32])],
+                        vec![&Pubkey::new(&random_bytes[32..])],
+                        &TransactionStatusMeta::default(),
+                    )
+                    .unwrap();
+            }
+
+            assert_eq!(
+                transaction_status_index_cf.get(0).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: slot0,
+                    frozen: true,
+                }
+            );
+            // Index 0 is frozen, so new statuses bump index 1 max_slot
+            assert_eq!(
+                transaction_status_index_cf.get(1).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: slot1,
+                    frozen: false,
+                }
+            );
+
+            // Index 0 statuses and address records still exist
+            let first_status_entry = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap()
+                .next()
+                .unwrap()
+                .0;
+            assert_eq!(first_status_entry.0, 0);
+            assert_eq!(first_status_entry.2, 10);
+            // New statuses and address records are stored in index 1
+            let index1_first_status_entry = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap()
+                .next()
+                .unwrap()
+                .0;
+            assert_eq!(index1_first_status_entry.0, 0);
+            assert_eq!(index1_first_status_entry.2, slot1);
+
+            blockstore
+                .run_purge(0, 18, PurgeType::PrimaryIndex)
+                .unwrap();
+            // Successful prune toggles TransactionStatusIndex
+            assert_eq!(
+                transaction_status_index_cf.get(0).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: 0,
+                    frozen: false,
+                }
+            );
+            assert_eq!(
+                transaction_status_index_cf.get(1).unwrap().unwrap(),
+                TransactionStatusIndexMeta {
+                    max_slot: slot1,
+                    frozen: true,
+                }
+            );
+
+            // Index 0 has been pruned, so first status and address entries are now index 1
+            assert!(blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC0>(IteratorMode::From(
+                    cf::TransactionStatusPOC0::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap()
+                .next()
+                .is_none());
+            let first_status_entry = blockstore
+                .db
+                .iter::<cf::TransactionStatusPOC1>(IteratorMode::From(
+                    cf::TransactionStatusPOC1::as_index(0),
+                    IteratorDirection::Forward,
+                ))
+                .unwrap()
+                .next()
+                .unwrap()
+                .0;
+            assert_eq!(first_status_entry.0, 0);
+            assert_eq!(first_status_entry.2, slot1);
+        }
+        Blockstore::destroy(&blockstore_path).expect("Expected successful database destruction");
+    }
+
+    #[test]
+    fn test_get_transaction_status_poc() {
+        let blockstore_path = get_tmp_ledger_path!();
+        {
+            let blockstore = Blockstore::open(&blockstore_path).unwrap();
+            // TransactionStatus column opens initialized with one entry at index 2
+            let transaction_status_poc_0_cf = blockstore.db.column::<cf::TransactionStatusPOC0>();
+            let transaction_status_poc_1_cf = blockstore.db.column::<cf::TransactionStatusPOC1>();
+
+            let pre_balances_vec = vec![1, 2, 3];
+            let post_balances_vec = vec![3, 2, 1];
+            let status = TransactionStatusMeta {
+                status: solana_sdk::transaction::Result::<()>::Ok(()),
+                fee: 42u64,
+                pre_balances: pre_balances_vec,
+                post_balances: post_balances_vec,
+                inner_instructions: Some(vec![]),
+                log_messages: Some(vec![]),
+                pre_token_balances: Some(vec![]),
+                post_token_balances: Some(vec![]),
+            };
+
+            let signature1 = Signature::new(&[1u8; 64]);
+            let signature2 = Signature::new(&[2u8; 64]);
+            let signature3 = Signature::new(&[3u8; 64]);
+            let signature4 = Signature::new(&[4u8; 64]);
+            let signature5 = Signature::new(&[5u8; 64]);
+            let signature6 = Signature::new(&[6u8; 64]);
+
+            // Initialize index 0, including:
+            //   signature2 in non-root and root,
+            //   signature4 in 2 non-roots,
+            //   extra entries
+            transaction_status_poc_0_cf
+                .put((0, signature2, 1), &status)
+                .unwrap();
+
+            transaction_status_poc_0_cf
+                .put((0, signature2, 2), &status)
+                .unwrap();
+
+            transaction_status_poc_0_cf
+                .put((0, signature4, 0), &status)
+                .unwrap();
+
+            transaction_status_poc_0_cf
+                .put((0, signature4, 1), &status)
+                .unwrap();
+
+            transaction_status_poc_0_cf
+                .put((0, signature5, 0), &status)
+                .unwrap();
+
+            transaction_status_poc_0_cf
+                .put((0, signature5, 1), &status)
+                .unwrap();
+
+            // Initialize index 1, including:
+            //   signature4 in non-root and root,
+            //   extra entries
+            transaction_status_poc_1_cf
+                .put((0, signature4, 1), &status)
+                .unwrap();
+
+            transaction_status_poc_1_cf
+                .put((0, signature4, 2), &status)
+                .unwrap();
+
+            transaction_status_poc_1_cf
+                .put((0, signature5, 0), &status)
+                .unwrap();
+
+            transaction_status_poc_1_cf
+                .put((0, signature5, 1), &status)
+                .unwrap();
+
+            blockstore.set_roots(&[2]).unwrap();
+
+            // Signature exists, root found in index 0
+            if let (Some((slot, _status)), counter) = blockstore
+                .get_transaction_status_with_counter(signature2)
+                .unwrap()
+            {
+                assert_eq!(slot, 2);
+                assert_eq!(counter, 2);
+            }
+
+            // Signature exists, root found in index 1
+            if let (Some((slot, _status)), counter) = blockstore
+                .get_transaction_status_with_counter(signature4)
+                .unwrap()
+            {
+                assert_eq!(slot, 2);
+                assert_eq!(counter, 5);
+            }
+
+            // Signature exists, no root found
+            let (status, counter) = blockstore
+                .get_transaction_status_with_counter(signature5)
+                .unwrap();
+            assert_eq!(status, None);
+            assert_eq!(counter, 6);
+
+            // Signature does not exist, smaller than existing entries
+            let (status, counter) = blockstore
+                .get_transaction_status_with_counter(signature1)
+                .unwrap();
+            assert_eq!(status, None);
+            assert_eq!(counter, 4); // 1 follow entry in each index, +2 to also check old columns
+
+            // Signature does not exist, between existing entries
+            let (status, counter) = blockstore
+                .get_transaction_status_with_counter(signature3)
+                .unwrap();
+            assert_eq!(status, None);
+            assert_eq!(counter, 4); // 1 follow entry in each index, +2 to also check old columns
+
+            // Signature does not exist, larger than existing entries
+            let (status, counter) = blockstore
+                .get_transaction_status_with_counter(signature6)
+                .unwrap();
+            assert_eq!(status, None);
+            assert_eq!(counter, 2); // No following entries, just +2 to check old columns
+        }
+        Blockstore::destroy(&blockstore_path).expect("Expected successful database destruction");
+    }
+
+    #[test]
     fn test_get_confirmed_transaction() {
         let slot = 2;
         let entries = make_slot_entries_with_transactions(5);
