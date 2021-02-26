@@ -119,7 +119,7 @@ pub struct BlockstoreSignals {
 // ledger window
 pub struct Blockstore {
     db: Arc<Database>,
-    meta_cf: LedgerColumn<cf::SlotMeta>,
+    pub meta_cf: LedgerColumn<cf::SlotMeta>,
     dead_slots_cf: LedgerColumn<cf::DeadSlots>,
     duplicate_slots_cf: LedgerColumn<cf::DuplicateSlots>,
     erasure_meta_cf: LedgerColumn<cf::ErasureMeta>,
