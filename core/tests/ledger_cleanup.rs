@@ -397,10 +397,10 @@ mod tests {
                 }
                 let slot_meta = SlotMeta {
                     slot: i,
-                    consumed: entries_per_slot,
-                    received: entries_per_slot,
+                    consumed: 4 * entries_per_slot,
+                    received: 4 * entries_per_slot,
                     first_shred_timestamp: 0,
-                    last_index: entries_per_slot,
+                    last_index: 4 * entries_per_slot,
                     parent_slot: i.saturating_sub(1),
                     next_slots: vec![i + 1],
                     is_connected: true,
