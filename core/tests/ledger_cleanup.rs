@@ -8,7 +8,7 @@ mod tests {
     use solana_ledger::blockstore::{make_many_slot_entries, Blockstore};
     use solana_ledger::blockstore_meta::SlotMeta;
     use solana_ledger::get_tmp_ledger_path;
-    use solana_ledger::shred::Shred;
+    // use solana_ledger::shred::Shred;
     use solana_measure::measure::Measure;
     use solana_sdk::signature::Signature;
     use solana_transaction_status::TransactionStatusMeta;
@@ -225,7 +225,7 @@ mod tests {
         let entries_per_slot = config.entries_per_slot;
         let stop_size_bytes = config.stop_size_bytes;
         let stop_size_iterations = config.stop_size_iterations;
-        let pre_generate_data = config.pre_generate_data;
+        let _pre_generate_data = config.pre_generate_data;
         let batches = benchmark_slots / batch_size;
 
         let (sender, receiver) = channel();
@@ -242,18 +242,23 @@ mod tests {
         let exit_cpu = Arc::new(AtomicBool::new(false));
         let sys = CpuStatsUpdater::new(&exit_cpu);
 
-        let mut generated_batches = VecDeque::<Vec<Shred>>::new();
+        // let mut generated_batches = VecDeque::<Vec<Shred>>::new();
+        let mut generated_signatures: Vec<Signature> = vec![];
 
-        if pre_generate_data {
+        // if pre_generate_data {
             let t0 = Instant::now();
             eprintln!("PRE_GENERATE_DATA: (this may take a while)");
-            for i in 0..batches {
-                let start_slot = i * batch_size;
-                let (shreds, _) = make_many_slot_entries(start_slot, batch_size, entries_per_slot);
-                generated_batches.push_back(shreds);
+            // for i in 0..batches {
+            //     let start_slot = i * batch_size;
+            //     let (shreds, _) = make_many_slot_entries(start_slot, batch_size, entries_per_slot);
+            //     generated_batches.push_back(shreds);
+            // }
+            for _ in 0..entries_per_slot {
+                let random_bytes: Vec<u8> = (0..64).map(|_| { rand::random::<u8>() }).collect();
+                generated_signatures.push(Signature::new(&random_bytes));
             }
             eprintln!("PRE_GENERATE_DATA: took {} ms", t0.elapsed().as_millis());
-        };
+        // };
 
         let time_initial = Instant::now();
         let mut time_previous = time_initial;
@@ -372,7 +377,7 @@ mod tests {
                 time = Instant::now();
             }
 
-            if shreds.lock().unwrap().len() < 50 {
+            if shreds.lock().unwrap().len() < 100 {
                 let mut make_time = Measure::start("make_entries");
                 /*let new_shreds = if pre_generate_data {
                     generated_batches.pop_front().unwrap()
@@ -386,11 +391,11 @@ mod tests {
                 };*/
                 num_slots += 1;
                 total_slots += 1;
-                for _ in 0..entries_per_slot {
-                    let random_bytes: Vec<u8> = (0..64).map(|_| { rand::random::<u8>() }).collect();
+                for x in 0..entries_per_slot {
+                    // let random_bytes: Vec<u8> = (0..64).map(|_| { rand::random::<u8>() }).collect();
                     let new_shreds = (
                         i,
-                        Signature::new(&random_bytes),
+                        generated_signatures[x as usize],
                         TransactionStatusMeta::default(),
                     );
                     shreds.lock().unwrap().push_back(new_shreds);
