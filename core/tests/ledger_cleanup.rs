@@ -290,7 +290,7 @@ mod tests {
             .spawn(move || {
                 let start = Instant::now();
                 let mut now = Instant::now();
-                let mut total = 0;
+                let total = 0;
                 let mut total_batches = 0;
                 let mut total_inserted_shreds = 0;
                 let mut num_shreds = 0;
