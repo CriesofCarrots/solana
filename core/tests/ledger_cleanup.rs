@@ -303,7 +303,7 @@ mod tests {
                     if now.elapsed().as_secs() > 0 {
                         let shreds_per_second = num_shreds as f32 / now.elapsed().as_secs() as f32;
                         warn!(
-                            "tried: {} inserted: {} batches: {} len: {} shreds_per_second: {}",
+                            "tried: {} inserted: {} statuses: {} len: {} statuses_per_second: {}",
                             total, total_inserted_shreds, total_batches, len, shreds_per_second,
                         );
                         let average_speed =
@@ -322,6 +322,7 @@ mod tests {
                         total_batches += 1;
                         //let br = blockstore1.insert_shreds(new_shreds, None, false).unwrap();
                         num_shreds += 1;
+                        total_inserted_shreds += 1;
                         blockstore1
                             .write_transaction_status(
                                 new_shreds.0,
