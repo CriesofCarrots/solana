@@ -382,12 +382,17 @@ mod tests {
                         .for_each(|shred| shred.set_slot(shred.slot() + batch_size));
                     entries_batch.clone()
                 };*/
-                let new_shreds = (
-                    i,
-                    Signature::new(&[0u8; 64]),
-                    TransactionStatusMeta::default(),
-                );
-                shreds.lock().unwrap().push_back(new_shreds);
+                num_slots += 1;
+                total_slots += 1;
+                for _ in 0..entries_per_slot {
+                    let random_bytes: Vec<u8> = (0..64).map(|_| { rand::random::<u8>() }).collect();
+                    let new_shreds = (
+                        i,
+                        Signature::new(&random_bytes),
+                        TransactionStatusMeta::default(),
+                    );
+                    shreds.lock().unwrap().push_back(new_shreds);
+                }
                 make_time.stop();
                 total_make += make_time.as_us();
             } else {
