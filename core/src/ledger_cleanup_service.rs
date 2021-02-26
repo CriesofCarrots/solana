@@ -200,7 +200,7 @@ impl LedgerCleanupService {
                     *blockstore.lowest_cleanup_slot.write().unwrap() = lowest_cleanup_slot;
                     slot_update_time.stop();
 
-                    info!(
+                    warn!(
                         "purging data from slots {} to {}",
                         purge_first_slot, lowest_cleanup_slot
                     );

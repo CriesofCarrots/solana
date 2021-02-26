@@ -6,6 +6,7 @@ mod tests {
     use log::*;
     use solana_core::ledger_cleanup_service::LedgerCleanupService;
     use solana_ledger::blockstore::{make_many_slot_entries, Blockstore};
+    use solana_ledger::blockstore_meta::SlotMeta;
     use solana_ledger::get_tmp_ledger_path;
     use solana_ledger::shred::Shred;
     use solana_measure::measure::Measure;
@@ -394,6 +395,18 @@ mod tests {
                     );
                     shreds.lock().unwrap().push_back(new_shreds);
                 }
+                let slot_meta = SlotMeta {
+                    slot: i,
+                    consumed: entries_per_slot,
+                    received: entries_per_slot,
+                    first_shred_timestamp: 0,
+                    last_index: entries_per_slot,
+                    parent_slot: i.saturating_sub(1),
+                    next_slots: vec![i + 1],
+                    is_connected: true,
+                    completed_data_indexes: vec![],
+                };
+                blockstore.meta_cf.put(i, &slot_meta).unwrap();
                 make_time.stop();
                 total_make += make_time.as_us();
             } else {
