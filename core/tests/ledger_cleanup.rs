@@ -244,20 +244,22 @@ mod tests {
 
         // let mut generated_batches = VecDeque::<Vec<Shred>>::new();
         let mut generated_signatures: Vec<Signature> = vec![];
+        let random_bytes_for_pre_balances: Vec<u64> =
+            (0..6000).map(|_| rand::random::<u64>()).collect();
 
         // if pre_generate_data {
-            let t0 = Instant::now();
-            eprintln!("PRE_GENERATE_DATA: (this may take a while)");
-            // for i in 0..batches {
-            //     let start_slot = i * batch_size;
-            //     let (shreds, _) = make_many_slot_entries(start_slot, batch_size, entries_per_slot);
-            //     generated_batches.push_back(shreds);
-            // }
-            for _ in 0..entries_per_slot {
-                let random_bytes: Vec<u8> = (0..64).map(|_| { rand::random::<u8>() }).collect();
-                generated_signatures.push(Signature::new(&random_bytes));
-            }
-            eprintln!("PRE_GENERATE_DATA: took {} ms", t0.elapsed().as_millis());
+        let t0 = Instant::now();
+        eprintln!("PRE_GENERATE_DATA: (this may take a while)");
+        // for i in 0..batches {
+        //     let start_slot = i * batch_size;
+        //     let (shreds, _) = make_many_slot_entries(start_slot, batch_size, entries_per_slot);
+        //     generated_batches.push_back(shreds);
+        // }
+        for _ in 0..entries_per_slot {
+            let random_bytes: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+            generated_signatures.push(Signature::new(&random_bytes));
+        }
+        eprintln!("PRE_GENERATE_DATA: took {} ms", t0.elapsed().as_millis());
         // };
 
         let time_initial = Instant::now();
@@ -396,16 +398,21 @@ mod tests {
                     let new_shreds = (
                         i,
                         generated_signatures[x as usize],
-                        TransactionStatusMeta::default(),
+                        TransactionStatusMeta {
+                            pre_balances: random_bytes_for_pre_balances
+                                [x as usize..x as usize + 300]
+                                .to_vec(),
+                            ..TransactionStatusMeta::default()
+                        },
                     );
                     shreds.lock().unwrap().push_back(new_shreds);
                 }
                 let slot_meta = SlotMeta {
                     slot: i,
-                    consumed: 4 * entries_per_slot,
-                    received: 4 * entries_per_slot,
+                    consumed: entries_per_slot,
+                    received: entries_per_slot,
                     first_shred_timestamp: 0,
-                    last_index: 4 * entries_per_slot,
+                    last_index: entries_per_slot,
                     parent_slot: i.saturating_sub(1),
                     next_slots: vec![i + 1],
                     is_connected: true,
