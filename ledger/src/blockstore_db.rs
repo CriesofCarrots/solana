@@ -1007,7 +1007,7 @@ impl<'a> WriteBatch<'a> {
     }
 }
 
-fn get_cf_options(access_type: &AccessType) -> Options {
+pub fn get_cf_options(access_type: &AccessType) -> Options {
     let mut options = Options::default();
     // 256 * 8 = 2GB. 6 of these columns should take at most 12GB of RAM
     options.set_max_write_buffer_number(8);

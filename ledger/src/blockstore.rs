@@ -7610,7 +7610,7 @@ pub mod tests {
 
     #[test]
     fn test_large_num_coding() {
-        use crate::blockstore_db::Rocks;
+        use crate::blockstore_db::{get_cf_options, Rocks};
         use byteorder::{BigEndian, ByteOrder};
         use fs_extra::dir::get_size;
 
@@ -7656,6 +7656,13 @@ pub mod tests {
             assert!(db.0.cf_handle("root").is_none());
             let folder_size = get_size(&blockstore_path).unwrap();
             println!("folder size after: {}", folder_size);
+
+            let opts = get_cf_options(&AccessType::PrimaryOnly);
+            db.0.create_cf("root", &opts).unwrap();
+            let root_handle = db.0.cf_handle("root").unwrap();
+            for key in &keys {
+                assert!(db.get_cf(&root_handle, &key).unwrap().is_none());
+            }
         }
 
         // Print folder size after dropping the column family
