@@ -76,6 +76,7 @@ pub enum BlockstoreError {
     ProtobufEncodeError(#[from] prost::EncodeError),
     ProtobufDecodeError(#[from] prost::DecodeError),
     ParentEntriesUnavailable,
+    MethodUnavailableForAccessType,
 }
 pub type Result<T> = std::result::Result<T, BlockstoreError>;
 
@@ -357,7 +358,24 @@ impl Rocks {
     fn cf_handle(&self, cf: &str) -> ColumnFamily {
         self.0
             .cf_handle(cf)
-            .expect("should never get an unknown column")
+            .expect(&format!("should never get an unknown column {}", cf))
+    }
+
+    fn drop_cf(&self, cf: &str) -> Result<()> {
+        if let ActualAccessType::Secondary = self.1 {
+            return Err(BlockstoreError::MethodUnavailableForAccessType);
+        }
+        self.0.drop_cf_multi_threaded(cf)?;
+        Ok(())
+    }
+
+    fn create_cf(&self, cf: &str) -> Result<()> {
+        if let ActualAccessType::Secondary = self.1 {
+            return Err(BlockstoreError::MethodUnavailableForAccessType);
+        }
+        let opts = get_cf_options(&AccessType::PrimaryOnly);
+        self.0.create_cf_multi_threaded(cf, &opts)?;
+        Ok(())
     }
 
     fn get_cf(&self, cf: &ColumnFamily, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -780,6 +798,20 @@ impl Database {
         let cf = self.cf_handle::<C>();
         let iter = self.backend.iterator_cf::<C>(&cf, iterator_mode);
         Ok(iter.map(|(key, value)| (C::index(&key), value)))
+    }
+
+    pub fn drop_cf<C: ColumnName>(&self) -> Result<()>
+    where
+        C: Column + ColumnName,
+    {
+        self.backend.drop_cf(C::NAME)
+    }
+
+    pub fn create_cf<C: ColumnName>(&self) -> Result<()>
+    where
+        C: Column + ColumnName,
+    {
+        self.backend.create_cf(C::NAME)
     }
 
     #[inline]
