@@ -284,13 +284,21 @@ impl Rocks {
         // Open the database
         let db = match access_type {
             AccessType::PrimaryOnly | AccessType::PrimaryOnlyForMaintenance => Rocks(
-                DB::open_cf_descriptors(&db_options, path, cfs.into_iter().map(|c| c.1))?,
+                DB::open_cf_descriptors_multi_threaded(
+                    &db_options,
+                    path,
+                    cfs.into_iter().map(|c| c.1),
+                )?,
                 ActualAccessType::Primary,
             ),
             AccessType::TryPrimaryThenSecondary => {
                 let names: Vec<_> = cfs.iter().map(|c| c.0).collect();
 
-                match DB::open_cf_descriptors(&db_options, path, cfs.into_iter().map(|c| c.1)) {
+                match DB::open_cf_descriptors_multi_threaded(
+                    &db_options,
+                    path,
+                    cfs.into_iter().map(|c| c.1),
+                ) {
                     Ok(db) => Rocks(db, ActualAccessType::Primary),
                     Err(err) => {
                         let secondary_path = path.join("solana-secondary");
