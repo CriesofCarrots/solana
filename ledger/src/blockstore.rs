@@ -7629,21 +7629,21 @@ pub mod tests {
 
         {
             let db = Rocks::open(&blockstore_path, AccessType::PrimaryOnly, None).unwrap();
-
+            println!("Rocks::open");
             let perf = rocksdb::perf::get_memory_usage_stats(Some(&[&db.0]), None).unwrap();
-            println!("{:?}", perf.mem_table_total);
-            println!("{:?}", perf.mem_table_unflushed);
-            println!("{:?}", perf.mem_table_readers_total);
+            println!("mem_table_total {:?}", perf.mem_table_total);
+            println!("mem_table_readers_total {:?}", perf.mem_table_readers_total);
+            println!("");
 
             let root_handle = db.0.cf_handle("root").unwrap();
             for key in &keys {
                 db.put_cf(&root_handle, &key, &serialized_value).unwrap();
             }
-
+            println!("put roots");
             let perf = rocksdb::perf::get_memory_usage_stats(Some(&[&db.0]), None).unwrap();
-            println!("{:?}", perf.mem_table_total);
-            println!("{:?}", perf.mem_table_unflushed);
-            println!("{:?}", perf.mem_table_readers_total);
+            println!("mem_table_total {:?}", perf.mem_table_total);
+            println!("mem_table_readers_total {:?}", perf.mem_table_readers_total);
+            println!("");
         }
 
         // Print folder size after the stores
@@ -7652,10 +7652,11 @@ pub mod tests {
         {
             let mut db = Rocks::open(&blockstore_path, AccessType::PrimaryOnly, None).unwrap();
             {
+                println!("Rocks::open");
                 let perf = rocksdb::perf::get_memory_usage_stats(Some(&[&db.0]), None).unwrap();
-                println!("{:?}", perf.mem_table_total);
-                println!("{:?}", perf.mem_table_unflushed);
-                println!("{:?}", perf.mem_table_readers_total);
+                println!("mem_table_total {:?}", perf.mem_table_total);
+                println!("mem_table_readers_total {:?}", perf.mem_table_readers_total);
+                println!("");
                 let root_handle = db.0.cf_handle("root").unwrap();
                 for key in &keys {
                     assert_eq!(
@@ -7665,16 +7666,18 @@ pub mod tests {
                 }
             }
 
+            println!("assert roots");
             let perf = rocksdb::perf::get_memory_usage_stats(Some(&[&db.0]), None).unwrap();
-            println!("{:?}", perf.mem_table_total);
-            println!("{:?}", perf.mem_table_unflushed);
-            println!("{:?}", perf.mem_table_readers_total);
+            println!("mem_table_total {:?}", perf.mem_table_total);
+            println!("mem_table_readers_total {:?}", perf.mem_table_readers_total);
+            println!("");
             db.0.drop_cf("root").unwrap();
 
+            println!("drop_cf");
             let perf = rocksdb::perf::get_memory_usage_stats(Some(&[&db.0]), None).unwrap();
-            println!("{:?}", perf.mem_table_total);
-            println!("{:?}", perf.mem_table_unflushed);
-            println!("{:?}", perf.mem_table_readers_total);
+            println!("mem_table_total {:?}", perf.mem_table_total);
+            println!("mem_table_readers_total {:?}", perf.mem_table_readers_total);
+            println!("");
 
             // Print folder size after dropping the column family
             assert!(db.0.cf_handle("root").is_none());
@@ -7688,12 +7691,12 @@ pub mod tests {
                 assert!(db.get_cf(&root_handle, &key).unwrap().is_none());
             }
             let folder_size = get_size(&blockstore_path).unwrap();
-            println!("folder size after after: {}", folder_size);
+            println!("folder size after re-create_cf: {}", folder_size);
 
             let perf = rocksdb::perf::get_memory_usage_stats(Some(&[&db.0]), None).unwrap();
-            println!("{:?}", perf.mem_table_total);
-            println!("{:?}", perf.mem_table_unflushed);
-            println!("{:?}", perf.mem_table_readers_total);
+            println!("mem_table_total {:?}", perf.mem_table_total);
+            println!("mem_table_readers_total {:?}", perf.mem_table_readers_total);
+            println!("");
         }
 
         // Print folder size after dropping the column family
@@ -7706,10 +7709,10 @@ pub mod tests {
             for key in &keys {
                 assert!(db.get_cf(&root_handle, &key).unwrap().is_none());
             }
+            println!("Rocks::open");
             let perf = rocksdb::perf::get_memory_usage_stats(Some(&[&db.0]), None).unwrap();
-            println!("{:?}", perf.mem_table_total);
-            println!("{:?}", perf.mem_table_unflushed);
-            println!("{:?}", perf.mem_table_readers_total);
+            println!("mem_table_total {:?}", perf.mem_table_total);
+            println!("mem_table_readers_total {:?}", perf.mem_table_readers_total);
         }
 
         Blockstore::destroy(&blockstore_path).expect("Expected successful database destruction");
