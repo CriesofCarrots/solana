@@ -2135,6 +2135,7 @@ dependencies = [
 [[package]]
 name = "librocksdb-sys"
 version = "6.15.4"
+source = "git+https://github.com/carllin/rust-rocksdb?branch=DropCf#1fc975f73453af006c621c14ed90c920ffaaa5f8"
 dependencies = [
  "bindgen",
  "cc",
@@ -3424,6 +3425,7 @@ dependencies = [
 [[package]]
 name = "rocksdb"
 version = "0.15.0"
+source = "git+https://github.com/carllin/rust-rocksdb?branch=DropCf#1fc975f73453af006c621c14ed90c920ffaaa5f8"
 dependencies = [
  "libc",
  "librocksdb-sys",
