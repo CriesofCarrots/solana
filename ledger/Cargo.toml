@@ -60,6 +60,7 @@ trees = "0.2.1"
 version = "0.15.0"
 default-features = false
 features = ["lz4"]
+# path = "../../rust-rocksdb"
 git = "https://github.com/carllin/rust-rocksdb"
 branch = "DropCf"
 

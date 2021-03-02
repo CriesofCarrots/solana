@@ -7675,7 +7675,7 @@ pub mod tests {
             println!("{:?}", perf.mem_table_unflushed);
             println!("{:?}", perf.mem_table_readers_total);
             println!("");
-            db.0.drop_cf("root").unwrap();
+            db.0.drop_cf_multithreaded("root").unwrap();
 
             println!("drop_cf");
             let perf = rocksdb::perf::get_memory_usage_stats(Some(&[&db.0]), None).unwrap();
@@ -7690,7 +7690,7 @@ pub mod tests {
             println!("folder size after: {}", folder_size);
 
             let opts = get_cf_options(&AccessType::PrimaryOnly);
-            db.0.create_cf("root", &opts).unwrap();
+            db.0.create_cf_multithreaded("root", &opts).unwrap();
             let root_handle = db.0.cf_handle("root").unwrap();
             for key in &keys {
                 assert!(db.get_cf(&root_handle, &key).unwrap().is_none());
