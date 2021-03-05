@@ -135,7 +135,7 @@
     "eslint-plugin-mocha": "^8.0.0",
     "eslint-plugin-prettier": "^3.0.0",
     "esm": "^3.2.25",
-    "flow-bin": "0.130.0",
+    "flow-bin": "0.146.0",
     "flow-remove-types": "^2.143.1",
     "flow-typed": "3.3.1",
     "http-server": "^0.12.3",
