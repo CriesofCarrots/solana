@@ -66,8 +66,8 @@ use solana_sdk::{
 };
 use solana_stake_program::stake_state::StakeState;
 use solana_transaction_status::{
-    EncodedConfirmedTransaction, TransactionConfirmationStatus, TransactionStatus,
-    UiConfirmedBlock, UiTransactionEncoding,
+    ConfirmationStatus, EncodedConfirmedTransaction, TransactionStatus, UiConfirmedBlock,
+    UiTransactionEncoding,
 };
 use solana_vote_program::vote_state::{VoteState, MAX_LOCKOUT_HISTORY};
 use spl_token_v2_0::{
@@ -931,7 +931,7 @@ impl JsonRpcRequestProcessor {
                             status: status_meta.status,
                             confirmations: None,
                             err,
-                            confirmation_status: Some(TransactionConfirmationStatus::Finalized),
+                            confirmation_status: Some(ConfirmationStatus::Finalized),
                         }
                     })
                     .or_else(|| {
@@ -980,11 +980,11 @@ impl JsonRpcRequestProcessor {
             confirmations,
             err,
             confirmation_status: if confirmations.is_none() {
-                Some(TransactionConfirmationStatus::Finalized)
+                Some(ConfirmationStatus::Finalized)
             } else if optimistically_confirmed.is_some() {
-                Some(TransactionConfirmationStatus::Confirmed)
+                Some(ConfirmationStatus::Confirmed)
             } else {
-                Some(TransactionConfirmationStatus::Processed)
+                Some(ConfirmationStatus::Processed)
             },
         })
     }

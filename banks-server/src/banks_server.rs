@@ -5,7 +5,7 @@ use futures::{
     prelude::stream::{self, StreamExt},
 };
 use solana_banks_interface::{
-    Banks, BanksRequest, BanksResponse, TransactionConfirmationStatus, TransactionStatus,
+    Banks, BanksRequest, BanksResponse, ConfirmationStatus, TransactionStatus,
 };
 use solana_runtime::{bank::Bank, bank_forks::BankForks, commitment::BlockCommitmentCache};
 use solana_sdk::{
@@ -196,11 +196,11 @@ impl Banks for BanksServer {
             confirmations,
             err: status.err(),
             confirmation_status: if confirmations.is_none() {
-                Some(TransactionConfirmationStatus::Finalized)
+                Some(ConfirmationStatus::Finalized)
             } else if optimistically_confirmed.is_some() {
-                Some(TransactionConfirmationStatus::Confirmed)
+                Some(ConfirmationStatus::Confirmed)
             } else {
-                Some(TransactionConfirmationStatus::Processed)
+                Some(ConfirmationStatus::Processed)
             },
         })
     }

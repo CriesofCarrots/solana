@@ -49,7 +49,7 @@ use solana_sdk::{
     transaction::Transaction,
     transaction::TransactionError,
 };
-use solana_transaction_status::TransactionConfirmationStatus;
+use solana_transaction_status::ConfirmationStatus;
 use std::{
     cmp::min,
     collections::HashMap,
@@ -2083,8 +2083,7 @@ fn send_and_confirm_transactions_with_spinner<T: Signers>(
                     {
                         if let Some(status) = status {
                             if let Some(confirmation_status) = &status.confirmation_status {
-                                if *confirmation_status != TransactionConfirmationStatus::Processed
-                                {
+                                if *confirmation_status != ConfirmationStatus::Processed {
                                     let _ = pending_transactions.remove(signature);
                                 }
                             } else if status.confirmations.is_none()

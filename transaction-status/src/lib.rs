@@ -264,7 +264,7 @@ impl From<TransactionStatusMeta> for UiTransactionStatusMeta {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum TransactionConfirmationStatus {
+pub enum ConfirmationStatus {
     Processed,
     Confirmed,
     Finalized,
@@ -277,7 +277,7 @@ pub struct TransactionStatus {
     pub confirmations: Option<usize>, // None = rooted
     pub status: Result<()>,           // legacy field
     pub err: Option<TransactionError>,
-    pub confirmation_status: Option<TransactionConfirmationStatus>,
+    pub confirmation_status: Option<ConfirmationStatus>,
 }
 
 impl TransactionStatus {
@@ -286,7 +286,7 @@ impl TransactionStatus {
             self.confirmations.is_none()
         } else if commitment_config.is_confirmed() {
             if let Some(status) = &self.confirmation_status {
-                *status != TransactionConfirmationStatus::Processed
+                *status != ConfirmationStatus::Processed
             } else {
                 // These fallback cases handle TransactionStatus RPC responses from older software
                 self.confirmations.is_some() && self.confirmations.unwrap() > 1
@@ -299,16 +299,16 @@ impl TransactionStatus {
 
     // Returns `confirmation_status`, or if is_none, determines the status from confirmations.
     // Facilitates querying nodes on older software
-    pub fn confirmation_status(&self) -> TransactionConfirmationStatus {
+    pub fn confirmation_status(&self) -> ConfirmationStatus {
         match &self.confirmation_status {
             Some(status) => status.clone(),
             None => {
                 if self.confirmations.is_none() {
-                    TransactionConfirmationStatus::Finalized
+                    ConfirmationStatus::Finalized
                 } else if self.confirmations.unwrap() > 0 {
-                    TransactionConfirmationStatus::Confirmed
+                    ConfirmationStatus::Confirmed
                 } else {
-                    TransactionConfirmationStatus::Processed
+                    ConfirmationStatus::Processed
                 }
             }
         }
@@ -699,7 +699,7 @@ mod test {
             confirmations: None,
             status: Ok(()),
             err: None,
-            confirmation_status: Some(TransactionConfirmationStatus::Finalized),
+            confirmation_status: Some(ConfirmationStatus::Finalized),
         };
 
         assert!(status.satisfies_commitment(CommitmentConfig::finalized()));
@@ -711,7 +711,7 @@ mod test {
             confirmations: Some(10),
             status: Ok(()),
             err: None,
-            confirmation_status: Some(TransactionConfirmationStatus::Confirmed),
+            confirmation_status: Some(ConfirmationStatus::Confirmed),
         };
 
         assert!(!status.satisfies_commitment(CommitmentConfig::finalized()));
@@ -723,7 +723,7 @@ mod test {
             confirmations: Some(1),
             status: Ok(()),
             err: None,
-            confirmation_status: Some(TransactionConfirmationStatus::Processed),
+            confirmation_status: Some(ConfirmationStatus::Processed),
         };
 
         assert!(!status.satisfies_commitment(CommitmentConfig::finalized()));
