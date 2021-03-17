@@ -30,8 +30,7 @@ use {
     },
     solana_stake_program::stake_state::{Authorized, Lockup},
     solana_transaction_status::{
-        EncodedConfirmedBlock, EncodedTransaction, TransactionConfirmationStatus,
-        UiTransactionStatusMeta,
+        ConfirmationStatus, EncodedConfirmedBlock, EncodedTransaction, UiTransactionStatusMeta,
     },
     solana_vote_program::{
         authorized_voters::AuthorizedVoters,
@@ -2026,7 +2025,7 @@ impl fmt::Display for CliTransaction {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CliTransactionConfirmation {
-    pub confirmation_status: Option<TransactionConfirmationStatus>,
+    pub confirmation_status: Option<ConfirmationStatus>,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub transaction: Option<CliTransaction>,
     #[serde(skip_serializing)]
@@ -2046,7 +2045,7 @@ impl VerboseDisplay for CliTransactionConfirmation {
             )?;
             write!(w, "{}", transaction)?;
         } else if let Some(confirmation_status) = &self.confirmation_status {
-            if confirmation_status != &TransactionConfirmationStatus::Finalized {
+            if confirmation_status != &ConfirmationStatus::Finalized {
                 writeln!(w)?;
                 writeln!(
                     w,

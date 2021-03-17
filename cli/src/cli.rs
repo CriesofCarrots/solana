@@ -2254,7 +2254,7 @@ mod tests {
         signature::{keypair_from_seed, read_keypair_file, write_keypair_file, Keypair, Presigner},
         transaction::TransactionError,
     };
-    use solana_transaction_status::TransactionConfirmationStatus;
+    use solana_transaction_status::ConfirmationStatus;
     use std::path::PathBuf;
 
     fn make_tmp_path(name: &str) -> String {
@@ -2595,7 +2595,7 @@ mod tests {
         config.command = CliCommand::Confirm(good_signature);
         assert_eq!(
             process_command(&config).unwrap(),
-            format!("{:?}", TransactionConfirmationStatus::Finalized)
+            format!("{:?}", ConfirmationStatus::Finalized)
         );
 
         let bob_keypair = Keypair::new();

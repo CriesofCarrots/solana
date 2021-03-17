@@ -11,9 +11,9 @@ use solana_sdk::{
 use solana_storage_proto::convert::generated;
 use solana_storage_proto::convert::tx_by_addr;
 use solana_transaction_status::{
-    ConfirmedBlock, ConfirmedTransaction, ConfirmedTransactionStatusWithSignature, Reward,
-    TransactionByAddrInfo, TransactionConfirmationStatus, TransactionStatus, TransactionStatusMeta,
-    TransactionWithStatusMeta,
+    ConfirmationStatus, ConfirmedBlock, ConfirmedTransaction,
+    ConfirmedTransactionStatusWithSignature, Reward, TransactionByAddrInfo, TransactionStatus,
+    TransactionStatusMeta, TransactionWithStatusMeta,
 };
 use std::{collections::HashMap, convert::TryInto};
 use thiserror::Error;
@@ -260,7 +260,7 @@ impl From<TransactionInfo> for TransactionStatus {
             confirmations: None,
             status,
             err,
-            confirmation_status: Some(TransactionConfirmationStatus::Finalized),
+            confirmation_status: Some(ConfirmationStatus::Finalized),
         }
     }
 }
