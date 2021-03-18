@@ -125,6 +125,12 @@ impl<T: EncodingConfig + Default + Copy> RpcEncodingConfigWrapper<T> {
     }
 }
 
+impl Into<RpcEncodingConfigWrapper<RpcConfirmedBlockConfig>> for RpcConfirmedBlockConfig {
+    fn into(self) -> RpcEncodingConfigWrapper<RpcConfirmedBlockConfig> {
+        RpcEncodingConfigWrapper::Current(Some(self))
+    }
+}
+
 pub trait EncodingConfig {
     fn new_with_encoding(encoding: &Option<UiTransactionEncoding>) -> Self;
 }
@@ -147,6 +153,13 @@ impl EncodingConfig for RpcConfirmedBlockConfig {
 }
 
 impl RpcConfirmedBlockConfig {
+    pub fn block_meta_only() -> Self {
+        Self {
+            transaction_details: Some(TransactionDetails::None),
+            rewards: Some(false),
+            ..Self::default()
+        }
+    }
     pub fn rewards_only() -> Self {
         Self {
             transaction_details: Some(TransactionDetails::None),

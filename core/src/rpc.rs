@@ -66,8 +66,8 @@ use solana_sdk::{
 };
 use solana_stake_program::stake_state::StakeState;
 use solana_transaction_status::{
-    ConfirmationStatus, EncodedConfirmedTransaction, TransactionStatus, UiConfirmedBlock,
-    UiTransactionEncoding,
+    BlockStatus, ConfirmationStatus, EncodedConfirmedTransaction, TransactionStatus,
+    UiConfirmedBlock, UiTransactionEncoding,
 };
 use solana_vote_program::vote_state::{VoteState, MAX_LOCKOUT_HISTORY};
 use spl_token_v2_0::{
@@ -714,6 +714,42 @@ impl JsonRpcRequestProcessor {
             }
         }
         Ok(())
+    }
+
+    pub fn get_block_status(&self, slot: Slot) -> Result<Option<BlockStatus>> {
+        if slot
+            <= self
+                .block_commitment_cache
+                .read()
+                .unwrap()
+                .highest_confirmed_root()
+        {
+            Ok(self
+                .get_confirmed_block(
+                    slot,
+                    Some(RpcConfirmedBlockConfig::block_meta_only().into()),
+                )?
+                .map(|finalized_block| BlockStatus {
+                    parent_slot: finalized_block.parent_slot,
+                    confirmation_status: ConfirmationStatus::Finalized,
+                }))
+        } else {
+            match self.bank_forks.read().unwrap().get(slot).cloned() {
+                Some(bank) => {
+                    let confirmed_bank = self.bank(Some(CommitmentConfig::confirmed()));
+                    let confirmation_status = if confirmed_bank.ancestors.contains_key(&slot) {
+                        ConfirmationStatus::Confirmed
+                    } else {
+                        ConfirmationStatus::Processed
+                    };
+                    Ok(Some(BlockStatus {
+                        parent_slot: bank.parent_slot(),
+                        confirmation_status,
+                    }))
+                }
+                None => Err(RpcCustomError::BlockNotAvailable { slot }.into()),
+            }
+        }
     }
 
     pub fn get_confirmed_block(
@@ -2181,6 +2217,10 @@ pub mod rpc_full {
         #[rpc(meta, name = "minimumLedgerSlot")]
         fn minimum_ledger_slot(&self, meta: Self::Metadata) -> Result<Slot>;
 
+        #[rpc(meta, name = "getBlockStatus")]
+        fn get_block_status(&self, meta: Self::Metadata, slot: Slot)
+            -> Result<Option<BlockStatus>>;
+
         #[rpc(meta, name = "getConfirmedBlock")]
         fn get_confirmed_block(
             &self,
@@ -2788,6 +2828,15 @@ pub mod rpc_full {
         fn minimum_ledger_slot(&self, meta: Self::Metadata) -> Result<Slot> {
             debug!("minimum_ledger_slot rpc request received");
             meta.minimum_ledger_slot()
+        }
+
+        fn get_block_status(
+            &self,
+            meta: Self::Metadata,
+            slot: Slot,
+        ) -> Result<Option<BlockStatus>> {
+            debug!("get_block_status rpc request received: {:?}", slot);
+            meta.get_block_status(slot)
         }
 
         fn get_confirmed_block(
