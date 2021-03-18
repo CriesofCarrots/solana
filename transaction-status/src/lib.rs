@@ -674,6 +674,13 @@ pub struct TransactionByAddrInfo {
     pub block_time: Option<UnixTimestamp>,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlockStatus {
+    pub parent_slot: Slot,
+    pub confirmation_status: ConfirmationStatus,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
