@@ -1741,6 +1741,7 @@ impl Blockstore {
         if self.is_root(slot) {
             return self.get_complete_block(slot, require_previous_blockhash);
         }
+        warn!("slot not rooted");
         Err(BlockstoreError::SlotNotRooted)
     }
 
@@ -1753,7 +1754,7 @@ impl Blockstore {
         let slot_meta = match slot_meta_cf.get(slot)? {
             Some(slot_meta) => slot_meta,
             None => {
-                info!("SlotMeta not found for slot {}", slot);
+                warn!("SlotMeta not found for slot {}", slot);
                 return Err(BlockstoreError::SlotUnavailable);
             }
         };
@@ -1778,7 +1779,9 @@ impl Blockstore {
                 let parent_slot_entries = self
                     .get_slot_entries(slot_meta.parent_slot, 0)
                     .unwrap_or_default();
+                warn!("parent_slot_entries {:?}", parent_slot_entries);
                 if parent_slot_entries.is_empty() && require_previous_blockhash {
+                    warn!("parent_slot_entries unavailable");
                     return Err(BlockstoreError::ParentEntriesUnavailable);
                 }
                 let previous_blockhash = if !parent_slot_entries.is_empty() {
@@ -1786,9 +1789,11 @@ impl Blockstore {
                 } else {
                     Hash::default()
                 };
+                warn!("previous_blockhash {:?}", previous_blockhash);
 
                 let blockhash = get_last_hash(slot_entries.iter())
                     .unwrap_or_else(|| panic!("Rooted slot {:?} must have blockhash", slot));
+                warn!("blockhash {:?}", blockhash);
 
                 let rewards = self
                     .rewards_cf
@@ -1796,6 +1801,7 @@ impl Blockstore {
                     .unwrap_or_default()
                     .into();
                 let block_time = self.blocktime_cf.get(slot)?;
+                warn!("block_time {:?}", block_time);
 
                 let block = ConfirmedBlock {
                     previous_blockhash: previous_blockhash.to_string(),
@@ -1809,6 +1815,7 @@ impl Blockstore {
                 return Ok(block);
             }
         }
+        warn!("slot meta not full");
         Err(BlockstoreError::SlotUnavailable)
     }
 
