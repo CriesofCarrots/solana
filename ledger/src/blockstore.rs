@@ -2808,6 +2808,18 @@ impl Blockstore {
         Ok(())
     }
 
+    pub fn destroy_roots(&self, rooted_slots: &[u64]) -> Result<()> {
+        let mut write_batch = self.db.batch()?;
+        for slot in rooted_slots {
+            if let Err(err) = write_batch.delete::<cf::Root>(*slot) {
+                eprintln!("Unable to remove root {:?}: {}", slot, err);
+            }
+        }
+
+        self.db.write(write_batch)?;
+        Ok(())
+    }
+
     pub fn is_dead(&self, slot: Slot) -> bool {
         matches!(
             self.db
