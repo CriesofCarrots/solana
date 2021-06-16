@@ -91,6 +91,7 @@ enum NotificationEntry {
     Bank(CommitmentSlots),
     Gossip(Slot),
     SignaturesReceived((Slot, Vec<Signature>)),
+    SendTxSignaturesReceived(Vec<Signature>),
 }
 
 impl std::fmt::Debug for NotificationEntry {
@@ -107,6 +108,9 @@ impl std::fmt::Debug for NotificationEntry {
             }
             NotificationEntry::SignaturesReceived(slot_signatures) => {
                 write!(f, "SignaturesReceived({:?})", slot_signatures)
+            }
+            NotificationEntry::SendTxSignaturesReceived(signatures) => {
+                write!(f, "SendTxSignaturesReceived({:?})", signatures)
             }
             NotificationEntry::Gossip(slot) => write!(f, "Gossip({:?})", slot),
         }
@@ -162,9 +166,10 @@ fn add_subscription<K, S, T>(
     last_notified_slot: Slot,
     config: Option<T>,
 ) where
-    K: Eq + Hash,
+    K: Eq + Hash + std::fmt::Debug,
     S: Clone,
 {
+    error!("add_subscription {:?} {:?}", hashmap_key, commitment);
     let sink = subscriber.assign_id(sub_id.clone()).unwrap();
     let subscription_data = SubscriptionData {
         sink,
@@ -960,6 +965,10 @@ impl RpcSubscriptions {
         self.enqueue_notification(NotificationEntry::SignaturesReceived(slot_signatures));
     }
 
+    pub fn notify_send_tx_signatures_received(&self, signatures: Vec<Signature>) {
+        self.enqueue_notification(NotificationEntry::SendTxSignaturesReceived(signatures));
+    }
+
     pub fn add_vote_subscription(&self, sub_id: SubscriptionId, subscriber: Subscriber<RpcVote>) {
         if self.enable_vote_subscription {
             let sink = subscriber.assign_id(sub_id.clone()).unwrap();
@@ -1004,6 +1013,9 @@ impl RpcSubscriptions {
     }
 
     fn enqueue_notification(&self, notification_entry: NotificationEntry) {
+        if let NotificationEntry::SendTxSignaturesReceived(_) = notification_entry {
+            error!("{:?}", notification_entry);
+        }
         match self
             .notification_sender
             .lock()
@@ -1012,7 +1024,7 @@ impl RpcSubscriptions {
         {
             Ok(()) => (),
             Err(SendError(notification)) => {
-                warn!(
+                error!(
                     "Dropped RPC Notification - receiver disconnected : {:?}",
                     notification
                 );
@@ -1115,14 +1127,27 @@ impl RpcSubscriptions {
                             &bank_forks,
                         );
                     }
-                    NotificationEntry::SignaturesReceived(slot_signatures) => {
+                    NotificationEntry::SignaturesReceived(_slot_signatures) => {
+                        // RpcSubscriptions::process_signatures_received(
+                        //     &slot_signatures,
+                        //     &subscriptions.gossip_signature_subscriptions,
+                        //     &notifier,
+                        // );
+                        // RpcSubscriptions::process_signatures_received(
+                        //     &slot_signatures,
+                        //     &subscriptions.signature_subscriptions,
+                        //     &notifier,
+                        // );
+                    }
+                    NotificationEntry::SendTxSignaturesReceived(signatures) => {
+                        error!("in process");
                         RpcSubscriptions::process_signatures_received(
-                            &slot_signatures,
+                            &(0, signatures.clone()),
                             &subscriptions.gossip_signature_subscriptions,
                             &notifier,
                         );
                         RpcSubscriptions::process_signatures_received(
-                            &slot_signatures,
+                            &(0, signatures),
                             &subscriptions.signature_subscriptions,
                             &notifier,
                         );
@@ -1283,8 +1308,13 @@ impl RpcSubscriptions {
         signature_subscriptions: &Arc<RpcSignatureSubscriptions>,
         notifier: &RpcNotifier,
     ) {
+        error!("in process_signatures_received");
+        for (signature, _) in signature_subscriptions.read().unwrap().iter() {
+            error!("sig {:?}", signature);
+        }
         for signature in signatures {
             if let Some(hashmap) = signature_subscriptions.read().unwrap().get(signature) {
+                error!("now here");
                 for (
                     _,
                     SubscriptionData {

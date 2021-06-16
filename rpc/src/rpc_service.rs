@@ -6,6 +6,7 @@ use {
         optimistically_confirmed_bank_tracker::OptimisticallyConfirmedBank,
         rpc::{rpc_deprecated_v1_7::*, rpc_full::*, rpc_minimal::*, rpc_obsolete_v1_7::*, *},
         rpc_health::*,
+        rpc_subscriptions::RpcSubscriptions,
         send_transaction_service::{LeaderInfo, SendTransactionService},
     },
     jsonrpc_core::{futures::prelude::*, MetaIoHandler},
@@ -284,6 +285,7 @@ impl JsonRpcService {
         max_slots: Arc<MaxSlots>,
         leader_schedule_cache: Arc<LeaderScheduleCache>,
         current_transaction_status_slot: Arc<AtomicU64>,
+        rpc_subscriptions: Arc<RpcSubscriptions>,
     ) -> Self {
         info!("rpc bound to {:?}", rpc_addr);
         info!("rpc configuration: {:?}", config);
@@ -377,6 +379,7 @@ impl JsonRpcService {
             receiver,
             send_transaction_retry_ms,
             send_transaction_leader_forward_count,
+            Some(rpc_subscriptions),
         ));
 
         #[cfg(test)]

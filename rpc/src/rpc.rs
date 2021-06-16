@@ -285,7 +285,7 @@ impl JsonRpcRequestProcessor {
         let cluster_info = Arc::new(ClusterInfo::default());
         let tpu_address = cluster_info.my_contact_info().tpu;
         let (sender, receiver) = channel();
-        SendTransactionService::new(tpu_address, &bank_forks, None, receiver, 1000, 1);
+        SendTransactionService::new(tpu_address, &bank_forks, None, receiver, 1000, 1, None);
 
         Self {
             config: JsonRpcConfig::default(),

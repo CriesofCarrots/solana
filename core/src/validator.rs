@@ -529,6 +529,7 @@ impl Validator {
                     max_slots.clone(),
                     leader_schedule_cache.clone(),
                     max_complete_transaction_status_slot,
+                    subscriptions.clone(),
                 )),
                 if config.rpc_config.minimal_api {
                     None

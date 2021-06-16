@@ -1,5 +1,6 @@
 // TODO: Merge this implementation with the one at `banks-server/src/send_transaction_service.rs`
 use {
+    crate::rpc_subscriptions::RpcSubscriptions,
     log::*,
     solana_gossip::cluster_info::ClusterInfo,
     solana_metrics::{datapoint_warn, inc_new_counter_info},
@@ -113,6 +114,7 @@ impl SendTransactionService {
         receiver: Receiver<TransactionInfo>,
         retry_rate_ms: u64,
         leader_forward_count: u64,
+        rpc_subscriptions: Option<Arc<RpcSubscriptions>>,
     ) -> Self {
         let thread = Self::retry_thread(
             tpu_address,
@@ -121,6 +123,7 @@ impl SendTransactionService {
             leader_info,
             retry_rate_ms,
             leader_forward_count,
+            rpc_subscriptions,
         );
         Self { thread }
     }
@@ -132,6 +135,7 @@ impl SendTransactionService {
         mut leader_info: Option<LeaderInfo>,
         retry_rate_ms: u64,
         leader_forward_count: u64,
+        rpc_subscriptions: Option<Arc<RpcSubscriptions>>,
     ) -> JoinHandle<()> {
         let mut last_status_check = Instant::now();
         let mut last_leader_refresh = Instant::now();
@@ -174,6 +178,14 @@ impl SendTransactionService {
                             datapoint_warn!("send_transaction_service-queue-overflow");
                         }
                     }
+                }
+
+                if let Some(rpc_subscriptions) = rpc_subscriptions.clone() {
+                    error!("here");
+                    rpc_subscriptions
+                        .notify_send_tx_signatures_received(
+                            transactions.iter().map(|(signature, _)| signature).cloned().collect()
+                        );
                 }
 
                 if last_status_check.elapsed().as_millis() as u64 >= retry_rate_ms {
