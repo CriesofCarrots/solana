@@ -423,6 +423,17 @@ impl Rocks {
                     continue;
                 }
 
+                if cf_name == Testing::NAME {
+                    db.0.set_options_cf(
+                        db.cf_handle(cf_name),
+                        &[(
+                            "periodic_compaction_seconds",
+                            &format!("{}", 60 * 20),
+                        )],
+                    )
+                    .unwrap();
+                }
+
                 // This is the crux of our write-stall-free storage cleaning strategy with consistent
                 // state view for higher-layers
                 //
@@ -1034,6 +1045,10 @@ impl Database {
 
     pub fn set_oldest_slot(&self, oldest_slot: Slot) {
         self.backend.2.set(oldest_slot);
+    }
+
+    pub fn set_testing_oldest_slot(&self, oldest_slot: Slot) {
+        self.backend.3.set(oldest_slot);
     }
 }
 

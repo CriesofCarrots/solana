@@ -1796,6 +1796,18 @@ impl Blockstore {
         self.testing_cf.put(slot, &testing)
     }
 
+    pub fn count_testing(&self) -> Result<u64> {
+        let lowest_slot = self.testing_cf.iter(IteratorMode::From(
+            0,
+            IteratorDirection::Forward,
+        ))?.next().map(|(slot, _)| slot).unwrap_or_default();
+        let highest_slot = self.testing_cf.iter(IteratorMode::From(
+            Slot::MAX,
+            IteratorDirection::Reverse,
+        ))?.next().map(|(slot, _)| slot).unwrap_or(lowest_slot);
+        Ok(highest_slot.saturating_sub(lowest_slot))
+    }
+
     pub fn get_first_available_block(&self) -> Result<Slot> {
         let mut root_iterator = self.rooted_slot_iterator(self.lowest_slot())?;
         Ok(root_iterator.next().unwrap_or_default())

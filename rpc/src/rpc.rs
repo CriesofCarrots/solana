@@ -615,6 +615,10 @@ impl JsonRpcRequestProcessor {
         self.bank(commitment).block_height()
     }
 
+    fn get_testing(&self) -> u64 {
+        self.blockstore.count_testing().unwrap_or_default()
+    }
+
     fn get_max_retransmit_slot(&self) -> Slot {
         self.max_slots.retransmit.load(Ordering::Relaxed)
     }
@@ -2183,6 +2187,12 @@ pub mod rpc_minimal {
             options: Option<RpcLeaderScheduleConfigWrapper>,
             config: Option<RpcLeaderScheduleConfig>,
         ) -> Result<Option<RpcLeaderSchedule>>;
+
+        #[rpc(meta, name = "getTesting")]
+        fn get_testing(
+            &self,
+            meta: Self::Metadata,
+        ) -> Result<u64>;
     }
 
     pub struct MinimalImpl;
@@ -2323,6 +2333,14 @@ pub mod rpc_minimal {
                     }
                     schedule_by_identity
                 }))
+        }
+
+        fn get_testing(
+            &self,
+            meta: Self::Metadata,
+        ) -> Result<u64> {
+            debug!("get_testing rpc request received");
+            Ok(meta.get_testing())
         }
     }
 }
