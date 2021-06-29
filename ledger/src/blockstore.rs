@@ -142,6 +142,7 @@ pub struct Blockstore {
     blocktime_cf: LedgerColumn<cf::Blocktime>,
     perf_samples_cf: LedgerColumn<cf::PerfSamples>,
     block_height_cf: LedgerColumn<cf::BlockHeight>,
+    testing_cf: LedgerColumn<cf::Testing>,
     last_root: Arc<RwLock<Slot>>,
     insert_shreds_lock: Arc<Mutex<()>>,
     pub new_shreds_signals: Vec<SyncSender<bool>>,
@@ -313,6 +314,7 @@ impl Blockstore {
         let blocktime_cf = db.column();
         let perf_samples_cf = db.column();
         let block_height_cf = db.column();
+        let testing_cf = db.column();
 
         let db = Arc::new(db);
 
@@ -361,6 +363,7 @@ impl Blockstore {
             blocktime_cf,
             perf_samples_cf,
             block_height_cf,
+            testing_cf,
             new_shreds_signals: vec![],
             completed_slots_senders: vec![],
             insert_shreds_lock: Arc::new(Mutex::new(())),
@@ -1778,6 +1781,19 @@ impl Blockstore {
 
     pub fn cache_block_height(&self, slot: Slot, block_height: u64) -> Result<()> {
         self.block_height_cf.put(slot, &block_height)
+    }
+
+    pub fn get_testing(&self, slot: Slot) -> Result<Option<u64>> {
+        datapoint_info!(
+            "blockstore-rpc-api",
+            ("method", "get_testing".to_string(), String)
+        );
+        // let _lock = self.check_lowest_cleanup_slot(slot)?;
+        self.testing_cf.get(slot)
+    }
+
+    pub fn cache_testing(&self, slot: Slot, testing: u64) -> Result<()> {
+        self.testing_cf.put(slot, &testing)
     }
 
     pub fn get_first_available_block(&self) -> Result<Slot> {

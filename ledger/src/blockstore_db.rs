@@ -71,6 +71,8 @@ const BLOCKTIME_CF: &str = "blocktime";
 const PERF_SAMPLES_CF: &str = "perf_samples";
 /// Column family for BlockHeight
 const BLOCK_HEIGHT_CF: &str = "block_height";
+/// Column family for Testing
+const TESTING_CF: &str = "testing";
 
 // 1 day is chosen for the same reasoning of DEFAULT_COMPACTION_SLOT_INTERVAL
 const PERIODIC_COMPACTION_SECONDS: u64 = 60 * 60 * 24;
@@ -174,6 +176,10 @@ pub mod columns {
     #[derive(Debug)]
     /// The block height column
     pub struct BlockHeight;
+
+    #[derive(Debug)]
+    /// The testing column
+    pub struct Testing;
 }
 
 pub enum AccessType {
@@ -248,7 +254,7 @@ impl OldestSlot {
 }
 
 #[derive(Debug)]
-struct Rocks(rocksdb::DB, ActualAccessType, OldestSlot);
+struct Rocks(rocksdb::DB, ActualAccessType, OldestSlot, OldestSlot);
 
 impl Rocks {
     fn open(
@@ -258,7 +264,7 @@ impl Rocks {
     ) -> Result<Rocks> {
         use columns::{
             AddressSignatures, BlockHeight, Blocktime, DeadSlots, DuplicateSlots, ErasureMeta,
-            Index, Orphans, PerfSamples, Rewards, Root, ShredCode, ShredData, SlotMeta,
+            Index, Orphans, PerfSamples, Rewards, Root, ShredCode, ShredData, SlotMeta, Testing,
             TransactionStatus, TransactionStatusIndex,
         };
 
@@ -274,6 +280,7 @@ impl Rocks {
         }
 
         let oldest_slot = OldestSlot::default();
+        let oldest_custom_slot = OldestSlot::default();
 
         // Column family names
         let meta_cf_descriptor = ColumnFamilyDescriptor::new(
@@ -340,6 +347,10 @@ impl Rocks {
             BlockHeight::NAME,
             get_cf_options::<BlockHeight>(&access_type, &oldest_slot),
         );
+        let testing_cf_descriptor = ColumnFamilyDescriptor::new(
+            Testing::NAME,
+            get_cf_options_with_custom_compaction::<Testing>(&access_type, &oldest_custom_slot),
+        );
         // Don't forget to add to both run_purge_with_stats() and
         // compact_storage() in ledger/src/blockstore/blockstore_purge.rs!!
 
@@ -363,6 +374,7 @@ impl Rocks {
             (Blocktime::NAME, blocktime_cf_descriptor),
             (PerfSamples::NAME, perf_samples_cf_descriptor),
             (BlockHeight::NAME, block_height_cf_descriptor),
+            (Testing::NAME, testing_cf_descriptor),
         ];
         let cf_names: Vec<_> = cfs.iter().map(|c| c.0).collect();
 
@@ -372,10 +384,11 @@ impl Rocks {
                 DB::open_cf_descriptors(&db_options, path, cfs.into_iter().map(|c| c.1))?,
                 ActualAccessType::Primary,
                 oldest_slot,
+                oldest_custom_slot,
             ),
             AccessType::TryPrimaryThenSecondary => {
                 match DB::open_cf_descriptors(&db_options, path, cfs.into_iter().map(|c| c.1)) {
-                    Ok(db) => Rocks(db, ActualAccessType::Primary, oldest_slot),
+                    Ok(db) => Rocks(db, ActualAccessType::Primary, oldest_slot, oldest_custom_slot),
                     Err(err) => {
                         let secondary_path = path.join("solana-secondary");
 
@@ -395,6 +408,7 @@ impl Rocks {
                             )?,
                             ActualAccessType::Secondary,
                             oldest_slot,
+                            oldest_custom_slot,
                         )
                     }
                 }
@@ -463,7 +477,7 @@ impl Rocks {
     fn columns(&self) -> Vec<&'static str> {
         use columns::{
             AddressSignatures, BlockHeight, Blocktime, DeadSlots, DuplicateSlots, ErasureMeta,
-            Index, Orphans, PerfSamples, Rewards, Root, ShredCode, ShredData, SlotMeta,
+            Index, Orphans, PerfSamples, Rewards, Root, ShredCode, ShredData, SlotMeta, Testing,
             TransactionStatus, TransactionStatusIndex,
         };
 
@@ -484,6 +498,7 @@ impl Rocks {
             Blocktime::NAME,
             PerfSamples::NAME,
             BlockHeight::NAME,
+            Testing::NAME,
         ]
     }
 
@@ -747,6 +762,14 @@ impl ColumnName for columns::BlockHeight {
     const NAME: &'static str = BLOCK_HEIGHT_CF;
 }
 impl TypedColumn for columns::BlockHeight {
+    type Type = u64;
+}
+
+impl SlotColumn for columns::Testing {}
+impl ColumnName for columns::Testing {
+    const NAME: &'static str = TESTING_CF;
+}
+impl TypedColumn for columns::Testing {
     type Type = u64;
 }
 
@@ -1267,6 +1290,43 @@ fn get_cf_options<C: 'static + Column + ColumnName>(
     {
         options.set_compaction_filter_factory(PurgedSlotFilterFactory::<C> {
             oldest_slot: oldest_slot.clone(),
+            name: CString::new(format!("purged_slot_filter_factory({})", C::NAME)).unwrap(),
+            _phantom: PhantomData::default(),
+        });
+    }
+
+    if matches!(access_type, AccessType::PrimaryOnlyForMaintenance) {
+        options.set_disable_auto_compactions(true);
+    }
+
+    options
+}
+
+fn get_cf_options_with_custom_compaction<C: 'static + Column + ColumnName>(
+    access_type: &AccessType,
+    oldest_custom_slot: &OldestSlot,
+) -> Options {
+    let mut options = Options::default();
+    // 256 * 8 = 2GB. 6 of these columns should take at most 12GB of RAM
+    options.set_max_write_buffer_number(8);
+    options.set_write_buffer_size(MAX_WRITE_BUFFER_SIZE as usize);
+    let file_num_compaction_trigger = 4;
+    // Recommend that this be around the size of level 0. Level 0 estimated size in stable state is
+    // write_buffer_size * min_write_buffer_number_to_merge * level0_file_num_compaction_trigger
+    // Source: https://docs.rs/rocksdb/0.6.0/rocksdb/struct.Options.html#method.set_level_zero_file_num_compaction_trigger
+    let total_size_base = MAX_WRITE_BUFFER_SIZE * file_num_compaction_trigger;
+    let file_size_base = total_size_base / 10;
+    options.set_level_zero_file_num_compaction_trigger(file_num_compaction_trigger as i32);
+    options.set_max_bytes_for_level_base(total_size_base);
+    options.set_target_file_size_base(file_size_base);
+
+    // TransactionStatusIndex must be excluded from LedgerCleanupService's rocksdb
+    // compactions....
+    if matches!(access_type, AccessType::PrimaryOnly)
+        && C::NAME != columns::TransactionStatusIndex::NAME
+    {
+        options.set_compaction_filter_factory(PurgedSlotFilterFactory::<C> {
+            oldest_slot: oldest_custom_slot.clone(),
             name: CString::new(format!("purged_slot_filter_factory({})", C::NAME)).unwrap(),
             _phantom: PhantomData::default(),
         });
