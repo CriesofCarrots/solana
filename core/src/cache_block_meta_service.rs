@@ -66,6 +66,10 @@ impl CacheBlockMetaService {
         if let Err(e) = blockstore.cache_block_height(bank.slot(), bank.block_height()) {
             error!("cache_block_height failed: slot {:?} {:?}", bank.slot(), e);
         }
+        if let Err(e) = blockstore.cache_testing(bank.slot(), bank.block_height()) {
+            error!("cache_testing failed: slot {:?} {:?}", bank.slot(), e);
+        }
+        blockstore.set_testing_slot(bank.slot() + 200);
     }
 
     pub fn join(self) -> thread::Result<()> {

@@ -45,6 +45,10 @@ impl Blockstore {
         self.db.set_oldest_slot(to_slot);
     }
 
+    pub fn set_testing_slot(&self, slot: Slot) {
+        self.db.set_testing_oldest_slot(slot);
+    }
+
     pub fn purge_and_compact_slots(&self, from_slot: Slot, to_slot: Slot) {
         self.purge_slots(from_slot, to_slot, PurgeType::Exact);
         if let Err(e) = self.compact_storage(from_slot, to_slot) {
