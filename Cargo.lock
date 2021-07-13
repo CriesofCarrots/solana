@@ -5353,7 +5353,7 @@ dependencies = [
  "symlink",
  "tokio 0.2.22",
  "tokio 1.8.1",
- "tokio-util 0.3.1",
+ "tokio-util 0.6.3",
 ]
 
 [[package]]
