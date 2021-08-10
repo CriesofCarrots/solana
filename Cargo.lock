@@ -1702,7 +1702,7 @@ dependencies = [
  "indexmap",
  "slab",
  "tokio 1.9.0",
- "tokio-util 0.6.3",
+ "tokio-util 0.6.7",
  "tracing",
 ]
 
@@ -2289,7 +2289,7 @@ dependencies = [
  "log 0.4.14",
  "tokio 1.9.0",
  "tokio-stream",
- "tokio-util 0.6.3",
+ "tokio-util 0.6.7",
  "unicase 2.6.0",
 ]
 
@@ -5575,7 +5575,7 @@ dependencies = [
  "spl-token",
  "symlink",
  "tokio 1.9.0",
- "tokio-util 0.6.3",
+ "tokio-util 0.6.7",
 ]
 
 [[package]]
@@ -6264,7 +6264,7 @@ dependencies = [
  "thiserror",
  "tokio 1.9.0",
  "tokio-serde",
- "tokio-util 0.6.3",
+ "tokio-util 0.6.7",
  "tracing",
  "tracing-opentelemetry",
 ]
@@ -6702,9 +6702,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.6.3"
+version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebb7cb2f00c5ae8df755b252306272cd1790d39728363936e01827e11f0b017b"
+checksum = "1caa0b0c8d94a049db56b5acf8cba99dc0623aab1b26d5b5f5e2d945846b3592"
 dependencies = [
  "bytes 1.0.1",
  "futures-core",
@@ -6748,7 +6748,7 @@ dependencies = [
  "tokio 1.9.0",
  "tokio-rustls",
  "tokio-stream",
- "tokio-util 0.6.3",
+ "tokio-util 0.6.7",
  "tower",
  "tower-layer",
  "tower-service",
@@ -6782,7 +6782,7 @@ dependencies = [
  "slab",
  "tokio 1.9.0",
  "tokio-stream",
- "tokio-util 0.6.3",
+ "tokio-util 0.6.7",
  "tower-layer",
  "tower-service",
  "tracing",
