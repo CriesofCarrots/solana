@@ -625,6 +625,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_signature_subscribe() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair: alice,
@@ -751,6 +752,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_signature_unsubscribe() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair: alice,
@@ -796,6 +798,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_account_subscribe() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair: alice,
@@ -912,6 +915,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_account_subscribe_with_encoding() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair: alice,
@@ -1003,6 +1007,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_account_unsubscribe() {
+        time_test!();
         let bob_pubkey = solana_sdk::pubkey::new_rand();
         let session = create_session();
         let GenesisConfigInfo { genesis_config, .. } = create_genesis_config(10_000);
@@ -1043,6 +1048,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_account_commitment_not_fulfilled() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair: alice,
@@ -1092,6 +1098,7 @@ mod tests {
 
     #[test]
     fn test_account_commitment() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair: alice,
@@ -1174,6 +1181,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_slot_subscribe() {
+        time_test!();
         let GenesisConfigInfo { genesis_config, .. } = create_genesis_config(10_000);
         let bank = Bank::new_for_tests(&genesis_config);
         let bank_forks = Arc::new(RwLock::new(BankForks::new(bank)));
@@ -1202,6 +1210,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_slot_unsubscribe() {
+        time_test!();
         let GenesisConfigInfo { genesis_config, .. } = create_genesis_config(10_000);
         let bank = Bank::new_for_tests(&genesis_config);
         let bank_forks = Arc::new(RwLock::new(BankForks::new(bank)));
@@ -1238,6 +1247,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_vote_subscribe() {
+        time_test!();
         let block_commitment_cache = Arc::new(RwLock::new(BlockCommitmentCache::new_for_tests()));
 
         let validator_voting_keypairs: Vec<_> =
@@ -1286,6 +1296,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_vote_unsubscribe() {
+        time_test!();
         let GenesisConfigInfo { genesis_config, .. } = create_genesis_config(10_000);
         let bank = Bank::new_for_tests(&genesis_config);
         let bank_forks = Arc::new(RwLock::new(BankForks::new(bank)));

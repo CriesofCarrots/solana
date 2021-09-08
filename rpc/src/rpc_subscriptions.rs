@@ -1407,6 +1407,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_check_account_subscribe() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair,
@@ -1514,6 +1515,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_check_program_subscribe() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair,
@@ -1607,6 +1609,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_check_program_subscribe_for_missing_optimistically_confirmed_slot() {
+        time_test!();
         // Testing if we can get the pubsub notification if a slot does not
         // receive OptimisticallyConfirmed but its descendant slot get the confirmed
         // notification.
@@ -1780,6 +1783,7 @@ pub(crate) mod tests {
     #[should_panic]
     fn test_check_program_subscribe_for_missing_optimistically_confirmed_slot_with_no_banks_no_notifications(
     ) {
+        time_test!();
         // Testing if we can get the pubsub notification if a slot does not
         // receive OptimisticallyConfirmed but its descendant slot get the confirmed
         // notification with a bank in the BankForks. We are not expecting to receive any notifications -- should panic.
@@ -1888,6 +1892,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_check_program_subscribe_for_missing_optimistically_confirmed_slot_with_no_banks() {
+        time_test!();
         // Testing if we can get the pubsub notification if a slot does not
         // receive OptimisticallyConfirmed but its descendant slot get the confirmed
         // notification. It differs from the test_check_program_subscribe_for_missing_optimistically_confirmed_slot
@@ -2060,6 +2065,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_check_signature_subscribe() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair,
@@ -2268,6 +2274,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_check_slot_subscribe() {
+        time_test!();
         let (subscriber, _id_receiver, transport_receiver) =
             Subscriber::new_test("slotNotification");
         let sub_id = SubscriptionId::Number(0);
@@ -2319,6 +2326,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_check_root_subscribe() {
+        time_test!();
         let (subscriber, _id_receiver, mut transport_receiver) =
             Subscriber::new_test("rootNotification");
         let sub_id = SubscriptionId::Number(0);
@@ -2425,6 +2433,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_gossip_separate_account_notifications() {
+        time_test!();
         let GenesisConfigInfo {
             genesis_config,
             mint_keypair,
@@ -2648,6 +2657,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_total_subscriptions() {
+        time_test!();
         let GenesisConfigInfo { genesis_config, .. } = create_genesis_config(100);
         let bank = Bank::new_for_tests(&genesis_config);
         let bank_forks = Arc::new(RwLock::new(BankForks::new(bank)));

@@ -24,3 +24,6 @@ extern crate serde_json;
 
 #[macro_use]
 extern crate solana_metrics;
+
+#[macro_use]
+extern crate time_test;
