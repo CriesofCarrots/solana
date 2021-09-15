@@ -66,6 +66,7 @@ members = [
     "stake-accounts",
     "sys-tuner",
     "tokens",
+    "transaction-dos",
     "transaction-status",
     "transaction-executor",
     "account-decoder",
