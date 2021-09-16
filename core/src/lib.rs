@@ -80,3 +80,6 @@ extern crate solana_frozen_abi_macro;
 #[cfg(test)]
 #[macro_use]
 extern crate matches;
+
+#[macro_use]
+extern crate time_test;

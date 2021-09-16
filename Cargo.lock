@@ -4520,6 +4520,7 @@ dependencies = [
  "systemstat",
  "tempfile",
  "thiserror",
+ "time-test",
  "tokio",
  "trees",
 ]
@@ -6195,6 +6196,15 @@ dependencies = [
  "quote 1.0.9",
  "standback",
  "syn 1.0.67",
+]
+
+[[package]]
+name = "time-test"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "483c031f2a6c1647dc242affd778f1bd07f0e0a9852d4e96976f64aaa6ee4a6d"
+dependencies = [
+ "time 0.1.43",
 ]
 
 [[package]]
