@@ -1513,6 +1513,7 @@ mod tests {
 
     #[test]
     fn test_vote_tracker_references() {
+    time_test!();
         // Create some voters at genesis
         let validator_keypairs: Vec<_> =
             (0..2).map(|_| ValidatorVoteKeypairs::new_rand()).collect();
