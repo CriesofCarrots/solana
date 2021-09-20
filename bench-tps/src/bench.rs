@@ -13,6 +13,7 @@ use solana_sdk::{
     fee_calculator::FeeCalculator,
     hash::Hash,
     message::Message,
+    native_token::Sol,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
     system_instruction, system_transaction,
@@ -867,13 +868,28 @@ pub fn generate_keypairs(seed_keypair: &Keypair, count: u64) -> (Vec<Keypair>, u
 
 pub fn generate_and_fund_keypairs<T: 'static + Client + Send + Sync>(
     client: Arc<T>,
-    faucet_addr: Option<SocketAddr>,
+    _faucet_addr: Option<SocketAddr>,
     funding_key: &Keypair,
     keypair_count: usize,
     lamports_per_account: u64,
 ) -> Result<Vec<Keypair>> {
     info!("Creating {} keypairs...", keypair_count);
     let (mut keypairs, extra) = generate_keypairs(funding_key, keypair_count as u64);
+    fund_keypairs(client, funding_key, &keypairs, extra, lamports_per_account)?;
+
+    // 'generate_keypairs' generates extra keys to be able to have size-aligned funding batches for fund_keys.
+    keypairs.truncate(keypair_count);
+
+    Ok(keypairs)
+}
+
+pub fn fund_keypairs<T: 'static + Client + Send + Sync>(
+    client: Arc<T>,
+    funding_key: &Keypair,
+    keypairs: &[Keypair],
+    extra: u64,
+    lamports_per_account: u64,
+) -> Result<()> {
     info!("Get lamports...");
 
     // Sample the first keypair, to prevent lamport loss on repeated solana-bench-tps executions
@@ -881,7 +897,7 @@ pub fn generate_and_fund_keypairs<T: 'static + Client + Send + Sync>(
     let first_keypair_balance = client.get_balance(&first_key).unwrap_or(0);
 
     // Sample the last keypair, to check if funding was already completed
-    let last_key = keypairs[keypair_count - 1].pubkey();
+    let last_key = keypairs[keypairs.len() - 1].pubkey();
     let last_keypair_balance = client.get_balance(&last_key).unwrap_or(0);
 
     // Repeated runs will eat up keypair balances from transaction fees. In order to quickly
@@ -902,8 +918,10 @@ pub fn generate_and_fund_keypairs<T: 'static + Client + Send + Sync>(
             funding_key_balance, max_fee, lamports_per_account, extra, total
         );
 
-        if client.get_balance(&funding_key.pubkey()).unwrap_or(0) < total {
-            airdrop_lamports(client.as_ref(), &faucet_addr.unwrap(), funding_key, total)?;
+        let funder_balance = client.get_balance(&funding_key.pubkey()).unwrap_or(0);
+        if funder_balance < total {
+            error!("funder has {}, needed {}", Sol(funder_balance), Sol(total));
+            return Err(BenchTpsError::AirdropFailure);
         }
 
         fund_keys(
@@ -915,11 +933,7 @@ pub fn generate_and_fund_keypairs<T: 'static + Client + Send + Sync>(
             lamports_per_account,
         );
     }
-
-    // 'generate_keypairs' generates extra keys to be able to have size-aligned funding batches for fund_keys.
-    keypairs.truncate(keypair_count);
-
-    Ok(keypairs)
+    Ok(())
 }
 
 #[cfg(test)]
