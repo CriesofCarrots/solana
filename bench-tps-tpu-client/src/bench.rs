@@ -4,6 +4,7 @@ use rayon::prelude::*;
 use solana_client::{
     perf_utils::{sample_txs, SampleStats},
     rpc_client::RpcClient,
+    rpc_config::RpcSendTransactionConfig,
     tpu_client::TpuClient,
 };
 use solana_core::gen_keys::GenKeys;
@@ -11,7 +12,7 @@ use solana_measure::measure::Measure;
 use solana_metrics::{self, datapoint_info};
 use solana_sdk::{
     clock::{DEFAULT_S_PER_SLOT, MAX_PROCESSING_AGE},
-    commitment_config::CommitmentConfig,
+    commitment_config::{CommitmentConfig, CommitmentLevel},
     hash::Hash,
     instruction::{AccountMeta, Instruction},
     message::Message,
@@ -580,7 +581,10 @@ impl<'a> FundingTransactions<'a> for Vec<(&'a Keypair, Transaction)> {
     fn send(&self, client: &Arc<RpcClient>) {
         let mut send_txs = Measure::start("send_txs");
         self.iter().for_each(|(_, tx)| {
-            client.send_transaction(&tx).expect("transfer");
+            client.send_transaction_with_config(&tx, RpcSendTransactionConfig {
+                preflight_commitment: Some(CommitmentLevel::Processed),
+                .. RpcSendTransactionConfig::default()
+            }).expect("transfer");
         });
         send_txs.stop();
         debug!("send {} txs: {}us", self.len(), send_txs.as_us());
