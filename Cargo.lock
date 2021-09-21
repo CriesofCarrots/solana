@@ -3459,9 +3459,9 @@ dependencies = [
 
 [[package]]
 name = "rayon"
-version = "1.5.0"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b0d8e0819fadc20c74ea8373106ead0600e3a67ef1fe8da56e39b9ae7275674"
+checksum = "c06aca804d41dbc8ba42dfd964f0d01334eceb64314b9ecf7c5fad5188a06d90"
 dependencies = [
  "autocfg 1.0.0",
  "crossbeam-deque",
@@ -3471,9 +3471,9 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.9.0"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ab346ac5921dc62ffa9f89b7a773907511cdfa5490c572ae9be1be33e8afa4a"
+checksum = "d78120e2c850279833f1dd3582f730c4ab53ed95aeaaaa862a2a5c71b1656d8e"
 dependencies = [
  "crossbeam-channel 0.5.0",
  "crossbeam-deque",
@@ -3895,12 +3895,12 @@ dependencies = [
 
 [[package]]
 name = "serde_yaml"
-version = "0.8.13"
+version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae3e2dd40a7cdc18ca80db804b7f461a39bb721160a85c9a1fa30134bf3c02a5"
+checksum = "d8c608a35705a5d3cdc9fbe403147647ff34b921f8e833e49306df898f9b20af"
 dependencies = [
  "dtoa",
- "linked-hash-map",
+ "indexmap",
  "serde",
  "yaml-rust",
 ]
@@ -3913,7 +3913,18 @@ checksum = "fef5f7c7434b2f2c598adc6f9494648a1e41274a75c0ba4056f680ae0c117fd6"
 dependencies = [
  "lazy_static",
  "parking_lot 0.10.2",
- "serial_test_derive",
+ "serial_test_derive 0.4.0",
+]
+
+[[package]]
+name = "serial_test"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0bccbcf40c8938196944a3da0e133e031a33f4d6b72db3bda3cc556e361905d"
+dependencies = [
+ "lazy_static",
+ "parking_lot 0.11.2",
+ "serial_test_derive 0.5.1",
 ]
 
 [[package]]
@@ -3921,6 +3932,17 @@ name = "serial_test_derive"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d08338d8024b227c62bd68a12c7c9883f5c66780abaef15c550dc56f46ee6515"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.9",
+ "syn 1.0.60",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2acd6defeddb41eb60bb468f8825d0cfd0c2a76bc03bfd235b6a1dc4f6a1ad5"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.9",
@@ -4335,7 +4357,7 @@ dependencies = [
  "rayon",
  "serde_json",
  "serde_yaml",
- "serial_test",
+ "serial_test 0.4.0",
  "solana-clap-utils",
  "solana-client",
  "solana-core",
@@ -4350,6 +4372,33 @@ dependencies = [
  "solana-runtime",
  "solana-sdk",
  "solana-streamer",
+ "solana-version",
+]
+
+[[package]]
+name = "solana-bench-tps-tpu-client"
+version = "1.8.1"
+dependencies = [
+ "clap",
+ "log 0.4.14",
+ "rayon",
+ "serde_json",
+ "serde_yaml",
+ "serial_test 0.5.1",
+ "solana-clap-utils",
+ "solana-cli",
+ "solana-cli-config",
+ "solana-client",
+ "solana-core",
+ "solana-genesis",
+ "solana-gossip",
+ "solana-local-cluster",
+ "solana-logger 1.8.1",
+ "solana-measure",
+ "solana-metrics",
+ "solana-net-utils",
+ "solana-runtime",
+ "solana-sdk",
  "solana-version",
 ]
 
@@ -4594,7 +4643,7 @@ dependencies = [
  "serde_bytes",
  "serde_derive",
  "serde_json",
- "serial_test",
+ "serial_test 0.4.0",
  "solana-account-decoder",
  "solana-accountsdb-plugin-manager",
  "solana-banks-server",
@@ -4852,7 +4901,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_derive",
- "serial_test",
+ "serial_test 0.4.0",
  "solana-clap-utils",
  "solana-client",
  "solana-frozen-abi 1.8.1",
@@ -5025,7 +5074,7 @@ dependencies = [
  "log 0.4.14",
  "rand 0.7.3",
  "rayon",
- "serial_test",
+ "serial_test 0.4.0",
  "solana-client",
  "solana-config-program",
  "solana-core",
@@ -5120,7 +5169,7 @@ dependencies = [
  "log 0.4.14",
  "rand 0.7.3",
  "reqwest",
- "serial_test",
+ "serial_test 0.4.0",
  "solana-sdk",
 ]
 
@@ -5371,7 +5420,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "serial_test",
+ "serial_test 0.4.0",
  "soketto",
  "solana-account-decoder",
  "solana-client",
@@ -7121,9 +7170,9 @@ dependencies = [
 
 [[package]]
 name = "yaml-rust"
-version = "0.4.3"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65923dd1784f44da1d2c3dbbc5e822045628c590ba72123e1c73d3c230c4434d"
+checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
 dependencies = [
  "linked-hash-map",
 ]

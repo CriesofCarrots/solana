@@ -437,15 +437,15 @@ pub struct CliConfig<'a> {
 }
 
 impl CliConfig<'_> {
-    fn default_keypair_path() -> String {
+    pub fn default_keypair_path() -> String {
         solana_cli_config::Config::default().keypair_path
     }
 
-    fn default_json_rpc_url() -> String {
+    pub fn default_json_rpc_url() -> String {
         solana_cli_config::Config::default().json_rpc_url
     }
 
-    fn default_websocket_url() -> String {
+    pub fn default_websocket_url() -> String {
         solana_cli_config::Config::default().websocket_url
     }
 

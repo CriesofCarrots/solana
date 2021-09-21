@@ -34,6 +34,17 @@ impl Client for BankClient {
     fn tpu_addr(&self) -> String {
         "Local BankClient".to_string()
     }
+
+    fn request_airdrop_with_blockhash(
+        &self,
+        _pubkey: &Pubkey,
+        _lamports: u64,
+        _blockhash: &Hash,
+    ) -> Result<Signature> {
+        Err(TransportError::Custom(
+            "Airdrops not enabled for a bank".to_string(),
+        ))
+    }
 }
 
 impl AsyncClient for BankClient {

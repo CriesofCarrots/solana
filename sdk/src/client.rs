@@ -27,6 +27,12 @@ use crate::{
 
 pub trait Client: SyncClient + AsyncClient {
     fn tpu_addr(&self) -> String;
+    fn request_airdrop_with_blockhash(
+        &self,
+        pubkey: &Pubkey,
+        lamports: u64,
+        recent_blockhash: &Hash,
+    ) -> Result<Signature>;
 }
 
 pub trait SyncClient {

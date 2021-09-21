@@ -145,7 +145,7 @@ impl ThinClient {
         Self::new_from_client(tpu_addr, transactions_socket, rpc_client)
     }
 
-    fn new_from_client(
+    pub fn new_from_client(
         tpu_addr: SocketAddr,
         transactions_socket: UdpSocket,
         rpc_client: RpcClient,
@@ -324,6 +324,17 @@ impl ThinClient {
 impl Client for ThinClient {
     fn tpu_addr(&self) -> String {
         self.tpu_addr().to_string()
+    }
+
+    fn request_airdrop_with_blockhash(
+        &self,
+        pubkey: &Pubkey,
+        lamports: u64,
+        blockhash: &Hash,
+    ) -> TransportResult<Signature> {
+        self.rpc_client()
+            .request_airdrop_with_blockhash(pubkey, lamports, blockhash)
+            .map_err(|e| e.into())
     }
 }
 
