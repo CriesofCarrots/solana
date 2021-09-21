@@ -3,6 +3,7 @@ members = [
     "accounts-cluster-bench",
     "bench-streamer",
     "bench-tps",
+    "bench-tps-tpu-client",
     "accounts-bench",
     "banking-bench",
     "banks-client",

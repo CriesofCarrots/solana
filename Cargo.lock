@@ -4300,6 +4300,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-bench-tps-tpu-client"
+version = "1.8.0"
+dependencies = [
+ "clap 2.33.3",
+ "log 0.4.14",
+ "rayon",
+ "serde_json",
+ "serde_yaml",
+ "serial_test",
+ "solana-clap-utils",
+ "solana-cli",
+ "solana-cli-config",
+ "solana-client",
+ "solana-core",
+ "solana-genesis",
+ "solana-gossip",
+ "solana-local-cluster",
+ "solana-logger 1.8.0",
+ "solana-measure",
+ "solana-metrics",
+ "solana-net-utils",
+ "solana-runtime",
+ "solana-sdk",
+ "solana-version",
+]
+
+[[package]]
 name = "solana-bpf-loader-program"
 version = "1.8.0"
 dependencies = [
