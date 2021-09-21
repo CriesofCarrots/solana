@@ -6,26 +6,16 @@ use solana_bench_tps_tpu_client::bench::{
 use solana_bench_tps_tpu_client::cli;
 use solana_client::{
     rpc_client::RpcClient,
-    thin_client::ThinClient,
     tpu_client::{TpuClient, TpuClientConfig},
 };
 use solana_genesis::Base64Account;
-use solana_gossip::cluster_info::VALIDATOR_PORT_RANGE;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     fee_calculator::FeeRateGovernor,
     signature::{Keypair, Signer},
     system_program,
 };
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::prelude::*,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    path::Path,
-    process::exit,
-    sync::Arc,
-};
+use std::{collections::HashMap, fs::File, io::prelude::*, path::Path, process::exit, sync::Arc};
 
 /// Number of signatures for all transactions in ~1 week at ~100K TPS
 pub const NUM_SIGNATURES_FOR_TXS: u64 = 100_000 * 60 * 60 * 24 * 7;
@@ -82,32 +72,20 @@ fn main() {
         return;
     }
 
-    let rpc_client =
-        RpcClient::new_with_commitment(json_rpc_url.to_string(), CommitmentConfig::confirmed());
-    // Build a ThinClient to avoid churn. Should not be used for transaction submission.
-    let dummy_tpu_addr = SocketAddr::from(([127, 0, 0, 1], 0));
-    let dummy_transactions_socket = solana_net_utils::bind_in_range(
-        IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        VALIDATOR_PORT_RANGE,
-    )
-    .unwrap()
-    .1;
-    let client = Arc::new(ThinClient::new_from_client(
-        dummy_tpu_addr,
-        dummy_transactions_socket,
-        rpc_client,
-    ));
     let rpc_client = Arc::new(RpcClient::new_with_commitment(
         json_rpc_url.to_string(),
         CommitmentConfig::confirmed(),
     ));
     let tpu_client = Arc::new(
-        TpuClient::new(rpc_client, websocket_url, TpuClientConfig::default()).unwrap_or_else(
-            |err| {
-                eprintln!("Could not create TpuClient {:?}", err);
-                exit(1);
-            },
-        ),
+        TpuClient::new(
+            rpc_client.clone(),
+            websocket_url,
+            TpuClientConfig::default(),
+        )
+        .unwrap_or_else(|err| {
+            eprintln!("Could not create TpuClient {:?}", err);
+            exit(1);
+        }),
     );
 
     let keypairs = if *read_from_client_file {
@@ -141,7 +119,7 @@ fn main() {
         // across multiple runs.
         keypairs.sort_by_key(|x| x.pubkey().to_string());
         fund_keypairs(
-            client.clone(),
+            rpc_client.clone(),
             id,
             &keypairs,
             keypairs.len().saturating_sub(keypair_count) as u64,
@@ -153,12 +131,17 @@ fn main() {
         });
         keypairs
     } else {
-        generate_and_fund_keypairs(client.clone(), id, keypair_count, *num_lamports_per_account)
-            .unwrap_or_else(|e| {
-                eprintln!("Error could not fund keys: {:?}", e);
-                exit(1);
-            })
+        generate_and_fund_keypairs(
+            rpc_client.clone(),
+            id,
+            keypair_count,
+            *num_lamports_per_account,
+        )
+        .unwrap_or_else(|e| {
+            eprintln!("Error could not fund keys: {:?}", e);
+            exit(1);
+        })
     };
 
-    do_bench_tps(client, tpu_client, cli_config, keypairs);
+    do_bench_tps(rpc_client, tpu_client, cli_config, keypairs);
 }

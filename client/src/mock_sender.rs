@@ -444,4 +444,8 @@ impl RpcSender for MockSender {
         };
         Ok(val)
     }
+
+    fn url(&self) -> String {
+        self.url.clone()
+    }
 }

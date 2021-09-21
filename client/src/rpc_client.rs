@@ -455,6 +455,10 @@ impl RpcClient {
         Self::new_with_timeout(url, timeout)
     }
 
+    pub fn url(&self) -> String {
+        self.sender.url()
+    }
+
     fn get_node_version(&self) -> Result<semver::Version, RpcError> {
         let r_node_version = self.node_version.read().unwrap();
         if let Some(version) = &*r_node_version {

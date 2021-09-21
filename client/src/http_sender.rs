@@ -199,6 +199,10 @@ impl RpcSender for HttpSender {
             return Ok(json["result"].take());
         }
     }
+
+    fn url(&self) -> String {
+        self.url.clone()
+    }
 }
 
 #[cfg(test)]
