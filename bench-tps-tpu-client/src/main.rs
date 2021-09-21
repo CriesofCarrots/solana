@@ -120,6 +120,7 @@ fn main() {
         keypairs.sort_by_key(|x| x.pubkey().to_string());
         fund_keypairs(
             rpc_client.clone(),
+            tpu_client.clone(),
             id,
             &keypairs,
             keypairs.len().saturating_sub(keypair_count) as u64,
@@ -133,6 +134,7 @@ fn main() {
     } else {
         generate_and_fund_keypairs(
             rpc_client.clone(),
+            tpu_client.clone(),
             id,
             keypair_count,
             *num_lamports_per_account,
