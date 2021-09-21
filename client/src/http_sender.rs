@@ -208,6 +208,10 @@ impl RpcSender for HttpSender {
             }
         }
     }
+
+    fn url(&self) -> String {
+        self.url.clone()
+    }
 }
 
 #[cfg(test)]

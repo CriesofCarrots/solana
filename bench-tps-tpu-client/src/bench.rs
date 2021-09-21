@@ -3,13 +3,13 @@ use log::*;
 use rayon::prelude::*;
 use solana_client::{
     perf_utils::{sample_txs, SampleStats},
+    rpc_client::RpcClient,
     tpu_client::TpuClient,
 };
 use solana_core::gen_keys::GenKeys;
 use solana_measure::measure::Measure;
 use solana_metrics::{self, datapoint_info};
 use solana_sdk::{
-    client::Client,
     clock::{DEFAULT_S_PER_SLOT, MAX_PROCESSING_AGE},
     commitment_config::CommitmentConfig,
     hash::Hash,
@@ -48,7 +48,7 @@ pub type Result<T> = std::result::Result<T, BenchTpsError>;
 
 pub type SharedTransactions = Arc<RwLock<VecDeque<Vec<(Transaction, u64)>>>>;
 
-fn get_latest_blockhash<T: Client>(client: &T) -> Hash {
+fn get_latest_blockhash(client: &RpcClient) -> Hash {
     loop {
         match client.get_latest_blockhash_with_commitment(CommitmentConfig::processed()) {
             Ok((blockhash, _)) => return blockhash,
@@ -60,10 +60,7 @@ fn get_latest_blockhash<T: Client>(client: &T) -> Hash {
     }
 }
 
-fn wait_for_target_slots_per_epoch<T>(target_slots_per_epoch: u64, client: &Arc<T>)
-where
-    T: 'static + Client + Send + Sync,
-{
+fn wait_for_target_slots_per_epoch(target_slots_per_epoch: u64, client: &Arc<RpcClient>) {
     if target_slots_per_epoch != 0 {
         info!(
             "Waiting until epochs are {} slots long..",
@@ -85,15 +82,12 @@ where
     }
 }
 
-fn create_sampler_thread<T>(
-    client: &Arc<T>,
+fn create_sampler_thread(
+    client: &Arc<RpcClient>,
     exit_signal: &Arc<AtomicBool>,
     sample_period: u64,
     maxes: &Arc<RwLock<Vec<(String, SampleStats)>>>,
-) -> JoinHandle<()>
-where
-    T: 'static + Client + Send + Sync,
-{
+) -> JoinHandle<()> {
     info!("Sampling TPS every {} second...", sample_period);
     let exit_signal = exit_signal.clone();
     let maxes = maxes.clone();
@@ -193,15 +187,12 @@ fn create_sender_threads(
         .collect()
 }
 
-pub fn do_bench_tps<T>(
-    client: Arc<T>,
+pub fn do_bench_tps(
+    client: Arc<RpcClient>,
     tpu_client: Arc<TpuClient>,
     config: Config,
     gen_keypairs: Vec<Keypair>,
-) -> u64
-where
-    T: 'static + Client + Send + Sync,
-{
+) -> u64 {
     let Config {
         id,
         threads,
@@ -394,10 +385,10 @@ fn generate_txs(
     }
 }
 
-fn poll_blockhash<T: Client>(
+fn poll_blockhash(
     exit_signal: &Arc<AtomicBool>,
     blockhash: &Arc<RwLock<Hash>>,
-    client: &Arc<T>,
+    client: &Arc<RpcClient>,
     id: &Pubkey,
 ) {
     let mut blockhash_last_updated = Instant::now();
@@ -493,10 +484,10 @@ fn do_tx_transfers(
     }
 }
 
-fn verify_funding_transfer<T: Client>(client: &Arc<T>, tx: &Transaction, amount: u64) -> bool {
+fn verify_funding_transfer(client: &Arc<RpcClient>, tx: &Transaction, amount: u64) -> bool {
     for a in &tx.message().account_keys[1..] {
         match client.get_balance_with_commitment(a, CommitmentConfig::processed()) {
-            Ok(balance) => return balance >= amount,
+            Ok(balance) => return balance.value >= amount,
             Err(err) => error!("failed to get balance {:?}", err),
         }
     }
@@ -504,22 +495,22 @@ fn verify_funding_transfer<T: Client>(client: &Arc<T>, tx: &Transaction, amount:
 }
 
 trait FundingTransactions<'a> {
-    fn fund<T: 'static + Client + Send + Sync>(
+    fn fund(
         &mut self,
-        client: &Arc<T>,
+        client: &Arc<RpcClient>,
         to_fund: &[(&'a Keypair, Vec<(Pubkey, u64)>)],
         to_lamports: u64,
     );
     fn make(&mut self, to_fund: &[(&'a Keypair, Vec<(Pubkey, u64)>)]);
     fn sign(&mut self, blockhash: Hash);
-    fn send<T: Client>(&self, client: &Arc<T>);
-    fn verify<T: 'static + Client + Send + Sync>(&mut self, client: &Arc<T>, to_lamports: u64);
+    fn send(&self, client: &Arc<RpcClient>);
+    fn verify(&mut self, client: &Arc<RpcClient>, to_lamports: u64);
 }
 
 impl<'a> FundingTransactions<'a> for Vec<(&'a Keypair, Transaction)> {
-    fn fund<T: 'static + Client + Send + Sync>(
+    fn fund(
         &mut self,
-        client: &Arc<T>,
+        client: &Arc<RpcClient>,
         to_fund: &[(&'a Keypair, Vec<(Pubkey, u64)>)],
         to_lamports: u64,
     ) {
@@ -586,16 +577,16 @@ impl<'a> FundingTransactions<'a> for Vec<(&'a Keypair, Transaction)> {
         debug!("sign {} txs: {}us", self.len(), sign_txs.as_us());
     }
 
-    fn send<T: Client>(&self, client: &Arc<T>) {
+    fn send(&self, client: &Arc<RpcClient>) {
         let mut send_txs = Measure::start("send_txs");
         self.iter().for_each(|(_, tx)| {
-            client.async_send_transaction(tx.clone()).expect("transfer");
+            client.send_transaction(&tx).expect("transfer");
         });
         send_txs.stop();
         debug!("send {} txs: {}us", self.len(), send_txs.as_us());
     }
 
-    fn verify<T: 'static + Client + Send + Sync>(&mut self, client: &Arc<T>, to_lamports: u64) {
+    fn verify(&mut self, client: &Arc<RpcClient>, to_lamports: u64) {
         let starting_txs = self.len();
         let verified_txs = Arc::new(AtomicUsize::new(0));
         let too_many_failures = Arc::new(AtomicBool::new(false));
@@ -670,8 +661,8 @@ impl<'a> FundingTransactions<'a> for Vec<(&'a Keypair, Transaction)> {
 /// fund the dests keys by spending all of the source keys into MAX_SPENDS_PER_TX
 /// on every iteration.  This allows us to replay the transfers because the source is either empty,
 /// or full
-pub fn fund_keys<T: 'static + Client + Send + Sync>(
-    client: Arc<T>,
+pub fn fund_keys(
+    client: Arc<RpcClient>,
     source: &Keypair,
     dests: &[Keypair],
     total: u64,
@@ -712,8 +703,8 @@ pub fn fund_keys<T: 'static + Client + Send + Sync>(
     }
 }
 
-pub fn airdrop_lamports<T: Client>(
-    client: &T,
+pub fn airdrop_lamports(
+    client: &RpcClient,
     faucet_addr: &SocketAddr,
     id: &Keypair,
     desired_balance: u64,
@@ -743,6 +734,7 @@ pub fn airdrop_lamports<T: Client>(
 
         let current_balance = client
             .get_balance_with_commitment(&id.pubkey(), CommitmentConfig::processed())
+            .map(|resp| resp.value)
             .unwrap_or_else(|e| {
                 info!("airdrop error {}", e);
                 starting_balance
@@ -846,8 +838,8 @@ pub fn generate_keypairs(seed_keypair: &Keypair, count: u64) -> (Vec<Keypair>, u
     (rnd.gen_n_keypairs(total_keys), extra)
 }
 
-pub fn generate_and_fund_keypairs<T: 'static + Client + Send + Sync>(
-    client: Arc<T>,
+pub fn generate_and_fund_keypairs(
+    client: Arc<RpcClient>,
     funding_key: &Keypair,
     keypair_count: usize,
     lamports_per_account: u64,
@@ -862,8 +854,8 @@ pub fn generate_and_fund_keypairs<T: 'static + Client + Send + Sync>(
     Ok(keypairs)
 }
 
-pub fn fund_keypairs<T: 'static + Client + Send + Sync>(
-    client: Arc<T>,
+pub fn fund_keypairs(
+    client: Arc<RpcClient>,
     funding_key: &Keypair,
     keypairs: &[Keypair],
     extra: u64,
