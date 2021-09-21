@@ -4,7 +4,6 @@ use rayon::prelude::*;
 use solana_client::{
     perf_utils::{sample_txs, SampleStats},
     rpc_client::RpcClient,
-    rpc_config::RpcSendTransactionConfig,
     tpu_client::TpuClient,
 };
 use solana_core::gen_keys::GenKeys;
@@ -12,7 +11,7 @@ use solana_measure::measure::Measure;
 use solana_metrics::{self, datapoint_info};
 use solana_sdk::{
     clock::{DEFAULT_S_PER_SLOT, MAX_PROCESSING_AGE},
-    commitment_config::{CommitmentConfig, CommitmentLevel},
+    commitment_config::CommitmentConfig,
     hash::Hash,
     instruction::{AccountMeta, Instruction},
     message::Message,
@@ -498,20 +497,22 @@ fn verify_funding_transfer(client: &Arc<RpcClient>, tx: &Transaction, amount: u6
 trait FundingTransactions<'a> {
     fn fund(
         &mut self,
-        client: &Arc<RpcClient>,
+        rpc_client: &Arc<RpcClient>,
+        tpu_client: &Arc<TpuClient>,
         to_fund: &[(&'a Keypair, Vec<(Pubkey, u64)>)],
         to_lamports: u64,
     );
     fn make(&mut self, to_fund: &[(&'a Keypair, Vec<(Pubkey, u64)>)]);
     fn sign(&mut self, blockhash: Hash);
-    fn send(&self, client: &Arc<RpcClient>);
+    fn send(&self, client: &Arc<TpuClient>);
     fn verify(&mut self, client: &Arc<RpcClient>, to_lamports: u64);
 }
 
 impl<'a> FundingTransactions<'a> for Vec<(&'a Keypair, Transaction)> {
     fn fund(
         &mut self,
-        client: &Arc<RpcClient>,
+        rpc_client: &Arc<RpcClient>,
+        tpu_client: &Arc<TpuClient>,
         to_fund: &[(&'a Keypair, Vec<(Pubkey, u64)>)],
         to_lamports: u64,
     ) {
@@ -531,16 +532,16 @@ impl<'a> FundingTransactions<'a> for Vec<(&'a Keypair, Transaction)> {
                 self.len(),
             );
 
-            let blockhash = get_latest_blockhash(client.as_ref());
+            let blockhash = get_latest_blockhash(rpc_client.as_ref());
 
             // re-sign retained to_fund_txes with updated blockhash
             self.sign(blockhash);
-            self.send(client);
+            self.send(tpu_client);
 
             // Sleep a few slots to allow transactions to process
             sleep(Duration::from_secs(1));
 
-            self.verify(client, to_lamports);
+            self.verify(rpc_client, to_lamports);
 
             // retry anything that seems to have dropped through cracks
             //  again since these txs are all or nothing, they're fine to
@@ -578,13 +579,10 @@ impl<'a> FundingTransactions<'a> for Vec<(&'a Keypair, Transaction)> {
         debug!("sign {} txs: {}us", self.len(), sign_txs.as_us());
     }
 
-    fn send(&self, client: &Arc<RpcClient>) {
+    fn send(&self, client: &Arc<TpuClient>) {
         let mut send_txs = Measure::start("send_txs");
         self.iter().for_each(|(_, tx)| {
-            client.send_transaction_with_config(&tx, RpcSendTransactionConfig {
-                preflight_commitment: Some(CommitmentLevel::Processed),
-                .. RpcSendTransactionConfig::default()
-            }).expect("transfer");
+            client.send_transaction(&tx);
         });
         send_txs.stop();
         debug!("send {} txs: {}us", self.len(), send_txs.as_us());
@@ -666,7 +664,8 @@ impl<'a> FundingTransactions<'a> for Vec<(&'a Keypair, Transaction)> {
 /// on every iteration.  This allows us to replay the transfers because the source is either empty,
 /// or full
 pub fn fund_keys(
-    client: Arc<RpcClient>,
+    rpc_client: Arc<RpcClient>,
+    tpu_client: Arc<TpuClient>,
     source: &Keypair,
     dests: &[Keypair],
     total: u64,
@@ -695,7 +694,8 @@ pub fn fund_keys(
 
         to_fund.chunks(FUND_CHUNK_LEN).for_each(|chunk| {
             Vec::<(&Keypair, Transaction)>::with_capacity(chunk.len()).fund(
-                &client,
+                &rpc_client,
+                &tpu_client,
                 chunk,
                 to_lamports,
             );
@@ -843,14 +843,22 @@ pub fn generate_keypairs(seed_keypair: &Keypair, count: u64) -> (Vec<Keypair>, u
 }
 
 pub fn generate_and_fund_keypairs(
-    client: Arc<RpcClient>,
+    rpc_client: Arc<RpcClient>,
+    tpu_client: Arc<TpuClient>,
     funding_key: &Keypair,
     keypair_count: usize,
     lamports_per_account: u64,
 ) -> Result<Vec<Keypair>> {
     info!("Creating {} keypairs...", keypair_count);
     let (mut keypairs, extra) = generate_keypairs(funding_key, keypair_count as u64);
-    fund_keypairs(client, funding_key, &keypairs, extra, lamports_per_account)?;
+    fund_keypairs(
+        rpc_client,
+        tpu_client,
+        funding_key,
+        &keypairs,
+        extra,
+        lamports_per_account,
+    )?;
 
     // 'generate_keypairs' generates extra keys to be able to have size-aligned funding batches for fund_keys.
     keypairs.truncate(keypair_count);
@@ -859,7 +867,8 @@ pub fn generate_and_fund_keypairs(
 }
 
 pub fn fund_keypairs(
-    client: Arc<RpcClient>,
+    rpc_client: Arc<RpcClient>,
+    tpu_client: Arc<TpuClient>,
     funding_key: &Keypair,
     keypairs: &[Keypair],
     extra: u64,
@@ -869,11 +878,11 @@ pub fn fund_keypairs(
 
     // Sample the first keypair, to prevent lamport loss on repeated solana-bench-tps executions
     let first_key = keypairs[0].pubkey();
-    let first_keypair_balance = client.get_balance(&first_key).unwrap_or(0);
+    let first_keypair_balance = rpc_client.get_balance(&first_key).unwrap_or(0);
 
     // Sample the last keypair, to check if funding was already completed
     let last_key = keypairs[keypairs.len() - 1].pubkey();
-    let last_keypair_balance = client.get_balance(&last_key).unwrap_or(0);
+    let last_keypair_balance = rpc_client.get_balance(&last_key).unwrap_or(0);
 
     // Repeated runs will eat up keypair balances from transaction fees. In order to quickly
     //   start another bench-tps run without re-funding all of the keypairs, check if the
@@ -889,28 +898,29 @@ pub fn fund_keypairs(
             )],
             None,
         );
-        let blockhash = client.get_latest_blockhash().unwrap();
-        let max_fee = client
+        let blockhash = rpc_client.get_latest_blockhash().unwrap();
+        let max_fee = rpc_client
             .get_fee_for_message(&blockhash, &single_sig_message)
             .unwrap();
         let extra_fees = extra * max_fee;
         let total_keypairs = keypairs.len() as u64 + 1; // Add one for funding keypair
         let total = lamports_per_account * total_keypairs + extra_fees;
 
-        let funding_key_balance = client.get_balance(&funding_key.pubkey()).unwrap_or(0);
+        let funding_key_balance = rpc_client.get_balance(&funding_key.pubkey()).unwrap_or(0);
         info!(
             "Funding keypair balance: {} max_fee: {} lamports_per_account: {} extra: {} total: {}",
             funding_key_balance, max_fee, lamports_per_account, extra, total
         );
 
-        let funder_balance = client.get_balance(&funding_key.pubkey()).unwrap_or(0);
+        let funder_balance = rpc_client.get_balance(&funding_key.pubkey()).unwrap_or(0);
         if funder_balance < total {
             error!("funder has {}, needed {}", Sol(funder_balance), Sol(total));
             return Err(BenchTpsError::AirdropFailure);
         }
 
         fund_keys(
-            client,
+            rpc_client,
+            tpu_client,
             funding_key,
             &keypairs,
             total,
