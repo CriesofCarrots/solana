@@ -1,7 +1,7 @@
 use crate::cli::Config;
 use log::*;
 use rayon::prelude::*;
-use solana_client::perf_utils::{sample_txs, SampleStats};
+use solana_client::perf_utils::{orig_sample_txs as sample_txs, SampleStats};
 use solana_core::gen_keys::GenKeys;
 use solana_faucet::faucet::request_airdrop_transaction;
 use solana_measure::measure::Measure;
