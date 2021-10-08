@@ -49,7 +49,7 @@ pub fn airdrop_lamports(
             id.pubkey(),
         );
 
-        let blockhash = client.get_latest_blockhash().unwrap();
+        let blockhash = client.get_recent_blockhash().unwrap().0;
         match request_airdrop_transaction(faucet_addr, &id.pubkey(), airdrop_amount, blockhash) {
             Ok(transaction) => {
                 let mut tries = 0;
@@ -187,12 +187,15 @@ fn run_transactions_dos(
     let mut latest_blockhash = Instant::now();
     let mut last_log = Instant::now();
     let mut count = 0;
-    let mut blockhash = client.get_latest_blockhash().expect("blockhash");
+    let mut blockhash = client.get_recent_blockhash().expect("blockhash").0;
 
     if just_calculate_fees {
         let fee = client
-            .get_fee_for_message(&blockhash, &message)
-            .expect("get_fee_for_message");
+            .get_fee_calculator_for_blockhash(&blockhash)
+            .expect("get_fee_calculator_for_blockhash")
+            .expect("get_fee_calculator_for_blockhash")
+            .lamports_per_signature
+            * (message.header.num_required_signatures as u64);
 
         let account_space_fees = min_balance * account_keypairs.len() as u64;
         let program_fees = if program_account.is_ok() {
@@ -260,13 +263,16 @@ fn run_transactions_dos(
 
     loop {
         if latest_blockhash.elapsed().as_millis() > 10_000 {
-            blockhash = client.get_latest_blockhash().expect("blockhash");
+            blockhash = client.get_recent_blockhash().expect("blockhash").0;
             latest_blockhash = Instant::now();
         }
 
         let fee = client
-            .get_fee_for_message(&blockhash, &message)
-            .expect("get_fee_for_message");
+            .get_fee_calculator_for_blockhash(&blockhash)
+            .expect("get_fee_calculator_for_blockhash")
+            .expect("get_fee_calculator_for_blockhash")
+            .lamports_per_signature
+            * (message.header.num_required_signatures as u64);
         let lamports = min_balance + fee;
 
         for (i, balance) in balances.iter_mut().enumerate() {
