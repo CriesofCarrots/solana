@@ -2,6 +2,8 @@ use crate::TransactionTokenBalance;
 use solana_account_decoder::parse_token::{
     spl_token_id_v2_0, spl_token_v2_0_native_mint, token_amount_to_ui_amount, UiTokenAmount,
 };
+use solana_measure::measure::Measure;
+use solana_metrics::datapoint_info;
 use solana_runtime::{bank::Bank, transaction_batch::TransactionBatch};
 use solana_sdk::{account::ReadableAccount, pubkey::Pubkey};
 use spl_token_v2_0::{
@@ -54,6 +56,7 @@ pub fn collect_token_balances(
     mint_decimals: &mut HashMap<Pubkey, u8>,
 ) -> TransactionTokenBalances {
     let mut balances: TransactionTokenBalances = vec![];
+    let mut collect_time = Measure::start("collect_token_balances");
 
     for transaction in batch.sanitized_transactions() {
         let has_token_program = transaction
@@ -81,6 +84,11 @@ pub fn collect_token_balances(
         }
         balances.push(transaction_balances);
     }
+    collect_time.stop();
+    datapoint_info!(
+        "collect_token_balances",
+        ("collect_time_us", collect_time.as_us(), i64),
+    );
     balances
 }
 
