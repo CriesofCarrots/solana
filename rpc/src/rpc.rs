@@ -900,7 +900,7 @@ impl JsonRpcRequestProcessor {
     {
         if result.is_err() {
             let err = result.as_ref().unwrap_err();
-            debug!(
+            warn!(
                 "check_blockstore_root, slot: {:?}, max root: {:?}, err: {:?}",
                 slot,
                 self.blockstore.max_root(),
@@ -979,7 +979,10 @@ impl JsonRpcRequestProcessor {
                     .highest_confirmed_root()
             {
                 let result = self.blockstore.get_rooted_block(slot, true);
-                self.check_blockstore_root(&result, slot)?;
+                warn!("{:?}", result);
+                let res = self.check_blockstore_root(&result, slot);
+                warn!("{:?}", res);
+                res?;
                 let configure_block = |confirmed_block: ConfirmedBlock| {
                     let mut confirmed_block =
                         confirmed_block.configure(encoding, transaction_details, show_rewards);
@@ -1191,7 +1194,10 @@ impl JsonRpcRequestProcessor {
                 .highest_confirmed_root()
         {
             let result = self.blockstore.get_block_time(slot);
-            self.check_blockstore_root(&result, slot)?;
+            warn!("{:?}", result);
+            let res = self.check_blockstore_root(&result, slot);
+            warn!("{:?}", res);
+            res?;
             if result.is_err() || matches!(result, Ok(None)) {
                 if let Some(bigtable_ledger_storage) = &self.bigtable_ledger_storage {
                     let bigtable_result = bigtable_ledger_storage.get_confirmed_block(slot).await;
