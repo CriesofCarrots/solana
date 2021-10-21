@@ -9,6 +9,7 @@ use {
     backoff::{future::retry, ExponentialBackoff},
     log::*,
     solana_measure::measure::Measure,
+    solana_metrics::datapoint_info,
     std::time::{Duration, Instant},
     thiserror::Error,
     tonic::{
