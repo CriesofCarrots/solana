@@ -349,7 +349,7 @@ impl LedgerStorage {
 
     /// Return the available slot that contains a block
     pub async fn get_first_available_block(&self) -> Result<Option<Slot>> {
-        let mut bigtable = self.connection.client();
+        let mut bigtable = self.connection.client()?;
         let blocks = bigtable.get_row_keys("blocks", None, None, 1).await?;
         if blocks.is_empty() {
             return Ok(None);
@@ -363,7 +363,7 @@ impl LedgerStorage {
     /// limit: stop after this many slots have been found; if limit==0, all records in the table
     /// after start_slot will be read
     pub async fn get_confirmed_blocks(&self, start_slot: Slot, limit: usize) -> Result<Vec<Slot>> {
-        let mut bigtable = self.connection.client();
+        let mut bigtable = self.connection.client()?;
         let blocks = bigtable
             .get_row_keys(
                 "blocks",
@@ -377,7 +377,7 @@ impl LedgerStorage {
 
     /// Fetch the confirmed block from the desired slot
     pub async fn get_confirmed_block(&self, slot: Slot) -> Result<ConfirmedBlock> {
-        let mut bigtable = self.connection.client();
+        let mut bigtable = self.connection.client()?;
         let block_cell_data = bigtable
             .get_protobuf_or_bincode_cell::<StoredConfirmedBlock, generated::ConfirmedBlock>(
                 "blocks",
@@ -397,7 +397,7 @@ impl LedgerStorage {
     }
 
     pub async fn get_signature_status(&self, signature: &Signature) -> Result<TransactionStatus> {
-        let mut bigtable = self.connection.client();
+        let mut bigtable = self.connection.client()?;
         let transaction_info = bigtable
             .get_bincode_cell::<TransactionInfo>("tx", signature.to_string())
             .await
@@ -413,7 +413,7 @@ impl LedgerStorage {
         &self,
         signature: &Signature,
     ) -> Result<Option<ConfirmedTransaction>> {
-        let mut bigtable = self.connection.client();
+        let mut bigtable = self.connection.client()?;
 
         // Figure out which block the transaction is located in
         let TransactionInfo { slot, index, .. } = bigtable
@@ -468,7 +468,7 @@ impl LedgerStorage {
             u32, /*slot index*/
         )>,
     > {
-        let mut bigtable = self.connection.client();
+        let mut bigtable = self.connection.client()?;
         let address_prefix = format!("{}/", address);
 
         // Figure out where to start listing from based on `before_signature`

@@ -8,6 +8,7 @@ use {
     },
     backoff::{future::retry, ExponentialBackoff},
     log::*,
+    solana_measure::measure::Measure,
     std::time::{Duration, Instant},
     thiserror::Error,
     tonic::{
@@ -107,7 +108,7 @@ type InterceptedRequestResult = std::result::Result<Request<()>, Status>;
 #[derive(Clone)]
 pub struct BigTableConnection {
     access_token: Option<AccessToken>,
-    channel: tonic::transport::Channel,
+    endpoint: tonic::transport::channel::Endpoint,
     table_prefix: String,
     timeout: Option<Duration>,
 }
@@ -129,12 +130,13 @@ impl BigTableConnection {
         match std::env::var("BIGTABLE_EMULATOR_HOST") {
             Ok(endpoint) => {
                 info!("Connecting to bigtable emulator at {}", endpoint);
-
                 Ok(Self {
                     access_token: None,
-                    channel: tonic::transport::Channel::from_shared(format!("http://{}", endpoint))
-                        .map_err(|err| Error::InvalidUri(endpoint, err.to_string()))?
-                        .connect_lazy()?,
+                    endpoint: tonic::transport::Channel::from_shared(format!(
+                        "http://{}",
+                        endpoint
+                    ))
+                    .map_err(|err| Error::InvalidUri(endpoint, err.to_string()))?,
                     table_prefix: format!("projects/emulator/instances/{}/tables/", instance_name),
                     timeout,
                 })
@@ -175,7 +177,7 @@ impl BigTableConnection {
 
                 Ok(Self {
                     access_token: Some(access_token),
-                    channel: endpoint.connect_lazy()?,
+                    endpoint: endpoint,
                     table_prefix,
                     timeout,
                 })
@@ -187,10 +189,17 @@ impl BigTableConnection {
     ///
     /// Clients require `&mut self`, due to `Tonic::transport::Channel` limitations, however
     /// creating new clients is cheap and thus can be used as a work around for ease of use.
-    pub fn client(&self) -> BigTable<impl FnMut(Request<()>) -> InterceptedRequestResult> {
+    pub fn client(&self) -> Result<BigTable<impl FnMut(Request<()>) -> InterceptedRequestResult>> {
+        let mut create_channel = Measure::start("create channel");
+        let channel = self.endpoint.connect_lazy()?;
+        create_channel.stop();
+        datapoint_info!(
+            "rpc_bigtable",
+            ("create_channel_us", create_channel.as_us(), i64),
+        );
         let access_token = self.access_token.clone();
         let client = bigtable_client::BigtableClient::with_interceptor(
-            self.channel.clone(),
+            channel,
             move |mut req: Request<()>| {
                 if let Some(access_token) = &access_token {
                     match MetadataValue::from_str(&access_token.get()) {
@@ -206,12 +215,12 @@ impl BigTableConnection {
                 Ok(req)
             },
         );
-        BigTable {
+        Ok(BigTable {
             access_token: self.access_token.clone(),
             client,
             table_prefix: self.table_prefix.clone(),
             timeout: self.timeout,
-        }
+        })
     }
 
     pub async fn put_bincode_cells_with_retry<T>(
@@ -223,7 +232,7 @@ impl BigTableConnection {
         T: serde::ser::Serialize,
     {
         retry(ExponentialBackoff::default(), || async {
-            let mut client = self.client();
+            let mut client = self.client()?;
             Ok(client.put_bincode_cells(table, cells).await?)
         })
         .await
@@ -231,7 +240,7 @@ impl BigTableConnection {
 
     pub async fn delete_rows_with_retry(&self, table: &str, row_keys: &[RowKey]) -> Result<()> {
         retry(ExponentialBackoff::default(), || async {
-            let mut client = self.client();
+            let mut client = self.client()?;
             Ok(client.delete_rows(table, row_keys).await?)
         })
         .await
@@ -246,7 +255,7 @@ impl BigTableConnection {
         T: serde::de::DeserializeOwned,
     {
         retry(ExponentialBackoff::default(), || async {
-            let mut client = self.client();
+            let mut client = self.client()?;
             Ok(client.get_bincode_cells(table, row_keys).await?)
         })
         .await
@@ -261,7 +270,7 @@ impl BigTableConnection {
         T: prost::Message,
     {
         retry(ExponentialBackoff::default(), || async {
-            let mut client = self.client();
+            let mut client = self.client()?;
             Ok(client.put_protobuf_cells(table, cells).await?)
         })
         .await

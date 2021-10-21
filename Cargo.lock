@@ -5657,6 +5657,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "smpl_jwt",
+ "solana-measure",
+ "solana-metrics",
  "solana-sdk",
  "solana-storage-proto",
  "solana-transaction-status",
