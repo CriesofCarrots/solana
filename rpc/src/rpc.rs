@@ -890,6 +890,44 @@ impl JsonRpcRequestProcessor {
         })
     }
 
+    fn check_blockstore_not_yet_rooted<T>(
+        &self,
+        result: &std::result::Result<T, BlockstoreError>,
+        slot: Slot,
+    ) -> Result<()>
+    where
+        T: std::fmt::Debug,
+    {
+        if result.is_err() {
+            let err = result.as_ref().unwrap_err();
+            debug!(
+                "check_blockstore_not_yet_rooted, slot: {:?}, max root: {:?}, err: {:?}",
+                slot,
+                self.blockstore.max_root(),
+                err
+            );
+            if slot >= self.blockstore.max_root() {
+                return Err(RpcCustomError::BlockNotAvailable { slot }.into());
+            }
+        }
+        Ok(())
+    }
+
+    fn check_blockstore_skipped<T, E>(
+        &self,
+        result: &std::result::Result<T, E>,
+        slot: Slot,
+    ) -> Result<()>
+    where
+        T: std::fmt::Debug,
+        E: std::error::Error,
+    {
+        if result.is_err() && self.blockstore.is_skipped(slot) {
+            return Err(RpcCustomError::SlotSkipped { slot }.into());
+        }
+        Ok(())
+    }
+
     fn check_blockstore_root<T>(
         &self,
         result: &std::result::Result<T, BlockstoreError>,
@@ -979,7 +1017,7 @@ impl JsonRpcRequestProcessor {
                     .highest_confirmed_root()
             {
                 let result = self.blockstore.get_rooted_block(slot, true);
-                self.check_blockstore_root(&result, slot)?;
+                self.check_blockstore_not_yet_rooted(&result, slot)?;
                 let configure_block = |confirmed_block: ConfirmedBlock| {
                     let mut confirmed_block =
                         confirmed_block.configure(encoding, transaction_details, show_rewards);
@@ -994,9 +1032,11 @@ impl JsonRpcRequestProcessor {
                         let bigtable_result =
                             bigtable_ledger_storage.get_confirmed_block(slot).await;
                         self.check_bigtable_result(&bigtable_result)?;
+                        self.check_blockstore_skipped(&bigtable_result, slot)?;
                         return Ok(bigtable_result.ok().map(configure_block));
                     }
                 }
+                self.check_blockstore_skipped(&result, slot)?;
                 self.check_slot_cleaned_up(&result, slot)?;
                 return Ok(result.ok().map(configure_block));
             } else if commitment.is_confirmed() {
@@ -1191,16 +1231,18 @@ impl JsonRpcRequestProcessor {
                 .highest_confirmed_root()
         {
             let result = self.blockstore.get_block_time(slot);
-            self.check_blockstore_root(&result, slot)?;
+            self.check_blockstore_not_yet_rooted(&result, slot)?;
             if result.is_err() || matches!(result, Ok(None)) {
                 if let Some(bigtable_ledger_storage) = &self.bigtable_ledger_storage {
                     let bigtable_result = bigtable_ledger_storage.get_confirmed_block(slot).await;
                     self.check_bigtable_result(&bigtable_result)?;
+                    self.check_blockstore_skipped(&bigtable_result, slot)?;
                     return Ok(bigtable_result
                         .ok()
                         .and_then(|confirmed_block| confirmed_block.block_time));
                 }
             }
+            self.check_blockstore_skipped(&result, slot)?;
             self.check_slot_cleaned_up(&result, slot)?;
             Ok(result.ok().unwrap_or(None))
         } else {
