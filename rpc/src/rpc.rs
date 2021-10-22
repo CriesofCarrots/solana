@@ -1031,8 +1031,8 @@ impl JsonRpcRequestProcessor {
                     if let Some(bigtable_ledger_storage) = &self.bigtable_ledger_storage {
                         let bigtable_result =
                             bigtable_ledger_storage.get_confirmed_block(slot).await;
-                        self.check_bigtable_result(&bigtable_result)?;
                         self.check_blockstore_skipped(&bigtable_result, slot)?;
+                        self.check_bigtable_result(&bigtable_result)?;
                         return Ok(bigtable_result.ok().map(configure_block));
                     }
                 }
@@ -1235,8 +1235,8 @@ impl JsonRpcRequestProcessor {
             if result.is_err() || matches!(result, Ok(None)) {
                 if let Some(bigtable_ledger_storage) = &self.bigtable_ledger_storage {
                     let bigtable_result = bigtable_ledger_storage.get_confirmed_block(slot).await;
-                    self.check_bigtable_result(&bigtable_result)?;
                     self.check_blockstore_skipped(&bigtable_result, slot)?;
+                    self.check_bigtable_result(&bigtable_result)?;
                     return Ok(bigtable_result
                         .ok()
                         .and_then(|confirmed_block| confirmed_block.block_time));
