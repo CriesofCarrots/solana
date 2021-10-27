@@ -53,6 +53,7 @@ jobs:
            source ci/env.sh
            rustup set profile default
            ci/publish-tarball.sh
+        shell: bash
 #       - name: Cache modules
 #         uses: actions/cache@master
 #         id: yarn-cache
