@@ -6,7 +6,33 @@
 
 if [[ -n $CI ]]; then
   export CI=1
+  CI_BRANCH="master"
+  CI_BASE_BRANCH=$CI_BRANCH
+  
+  # CI_OS_NAME=$RUNNER_OS
+  echo "RUNNER_OS is : $RUNNER_OS"
+  echo "CI_OS_NAME is : $CI_OS_NAME"
+  
+  if [[ "$RUNNER_OS" = macOS ]]; then
+#    test macos != "$CI_OS_NAME" || CI_OS_NAME=osx
+#     echo $CI_BASE_BRANCH
+#     echo $CI_BASE_BRANCH  
+    export CI_OS_NAME="$(echo "$RUNNER_OS" | tr A-Z a-z)"
+    CI_OS_NAME=osx
+    CHANNEL_OR_TAG=$CI_BASE_BRANCH
+    echo "hello there in macos"
+  elif [[ "$RUNNER_OS" = Windows ]]; then
+#       test windows != "$CI_OS_NAME" || CI_OS_NAME=windows
+#     echo $CI_BASE_BRANCH
+#     echo $CI_BASE_BRANCH  
+    export CI_OS_NAME="$(echo "$RUNNER_OS" | tr A-Z a-z)"
+    CI_OS_NAME=windows    
+    CHANNEL_OR_TAG=$CI_BASE_BRANCH
+    echo "hello there in windows"
+  fi
+
   if [[ -n $TRAVIS ]]; then
+    echo "inside the travis if"
     export CI_BRANCH=$TRAVIS_BRANCH
     export CI_BASE_BRANCH=$TRAVIS_BRANCH
     export CI_BUILD_ID=$TRAVIS_BUILD_ID
@@ -21,6 +47,7 @@ if [[ -n $CI ]]; then
     export CI_REPO_SLUG=$TRAVIS_REPO_SLUG
     export CI_TAG=$TRAVIS_TAG
   elif [[ -n $BUILDKITE ]]; then
+  echo "inside the bk if"
     export CI_BRANCH=$BUILDKITE_BRANCH
     export CI_BUILD_ID=$BUILDKITE_BUILD_ID
     export CI_COMMIT=$BUILDKITE_COMMIT
@@ -51,6 +78,7 @@ if [[ -n $CI ]]; then
       export CI_TAG=$BUILDKITE_TAG
     fi
   elif [[ -n $APPVEYOR ]]; then
+    echo "inside the app if"
     export CI_BRANCH=$APPVEYOR_REPO_BRANCH
     export CI_BUILD_ID=$APPVEYOR_BUILD_ID
     export CI_COMMIT=$APPVEYOR_REPO_COMMIT
@@ -69,18 +97,16 @@ if [[ -n $CI ]]; then
     export CI_TAG=$APPVEYOR_REPO_TAG_NAME
   fi
 else
+  echo "inside else"
   export CI=
   export CI_BRANCH=
   export CI_BUILD_ID=
   export CI_COMMIT=
   export CI_JOB_ID=
+  export CI_OS_NAME=
   export CI_PULL_REQUEST=
   export CI_REPO_SLUG=
   export CI_TAG=
-  # Don't override ci/run-local.sh
-  if [[ -z $CI_LOCAL_RUN ]]; then
-    export CI_OS_NAME=
-  fi
 fi
 
 cat <<EOF
