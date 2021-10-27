@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env: 
        VERCEL_TOKEN: ${{secrets.VERCEL_TOKEN}}
-       GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}} 
+       GITHUB_TOKEN: ${{secrets.PAT_ANM}} 
        COMMIT_RANGE: ${{ github.event.before}}...${{ github.event.after}}
     steps:
       - name: Checkout repo
@@ -24,7 +24,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GITHUB_TOKEN: ${{secrets.PAT_ANM}}
         if: ${{ github.event_name == 'push' && 'cron'&& github.ref == 'refs/heads/master'}}
         
       - name: cmd
