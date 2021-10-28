@@ -166,10 +166,10 @@ jobs:
            set OPENSSL_CONF=C:\Program Files\OpenSSL-Win64\bin\openssl.cfg
            echo "setting path to C:\Program Files\OpenSSL-Win64"
            openssl version
-           $env:OPENSSL_DIR += "C:\Program Files\OpenSSL-Win64\bin"
-           $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin"
-           $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg"
-           $env:OPENSSL_DIR += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg"
+           $env:OPENSSL_DIR += "C:\Program Files\OpenSSL-Win64\bin:$PATH"
+           $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin:$PATH"
+           $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg:$PATH"
+           $env:OPENSSL_DIR += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg:$PATH"
            $env:PATH
 #      #      if (-not (Test-Path $profile) ) { New-Item -Path $profile -ItemType File -Force}
 #      #      '$env:path = "$env:path;C:\Program Files\OpenSSL\bin"' | Out-File $profile -Append
