@@ -136,6 +136,21 @@ for file in "${TARBALL_BASENAME}"-$TARGET.tar.bz2 "${TARBALL_BASENAME}"-$TARGET.
   elif [[ -n $APPVEYOR ]]; then
     # Add artifacts for .appveyor.yml to upload
     appveyor PushArtifact "$file" -FileName "$CHANNEL_OR_TAG"/"$file"
+    
+  elif [[ -z $TRAVIS ]]; then
+    # .travis.yml uploads everything in the travis-s3-upload/ directory to release.solana.com
+    echo "CHANNEL_OR_TAG is : $CHANNEL_OR_TAG"
+    mkdir -p travis-s3-upload1/"$CHANNEL_OR_TAG"
+    cp -v "$file" travis-s3-upload1/"$CHANNEL_OR_TAG"/
+    
+    echo "TAG is : $TAG"
+    if [[ -n $TAG ]]; then
+      # .travis.yaml uploads everything in the travis-release-upload/ directory to
+      # the associated Github Release
+      echo "15"
+      mkdir -p travis-release-upload1/
+      cp -v "$file" travis-release-upload1/
+    fi
   fi
 done
 
@@ -143,18 +158,18 @@ done
 # Create install wrapper for release.solana.com
 if [[ -n $DO_NOT_PUBLISH_TAR ]]; then
   echo "Skipping publishing install wrapper"
-elif [[ -n $BUILDKITE ]]; then
-  cat > release.solana.com-install <<EOF
+elif [[ -z $BUILDKITE ]]; then
+  cat > giitsol-install <<EOF
 SOLANA_RELEASE=$CHANNEL_OR_TAG
 SOLANA_INSTALL_INIT_ARGS=$CHANNEL_OR_TAG
-SOLANA_DOWNLOAD_ROOT=http://release.solana.com
+SOLANA_DOWNLOAD_ROOT=http://giitsol
 EOF
-  cat install/solana-install-init.sh >> release.solana.com-install
+  cat install/solana-install-init.sh >> giitsol-install
 
   echo --- AWS S3 Store: "install"
-  $DRYRUN upload-s3-artifact "/solana/release.solana.com-install" "s3://release.solana.com/$CHANNEL_OR_TAG/install"
+  $DRYRUN upload-s3-artifact "/solana/giitsol-install" "s3://giitsol/$CHANNEL_OR_TAG/install"
   echo Published to:
-  $DRYRUN ci/format-url.sh https://release.solana.com/"$CHANNEL_OR_TAG"/install
+  $DRYRUN ci/format-url.sh https://giitsol/"$CHANNEL_OR_TAG"/install
 fi
 
 echo --- ok
