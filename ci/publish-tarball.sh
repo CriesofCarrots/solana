@@ -158,7 +158,7 @@ done
 # Create install wrapper for release.solana.com
 if [[ -n $DO_NOT_PUBLISH_TAR ]]; then
   echo "Skipping publishing install wrapper"
-elif [[ -z $BUILDKITE ]]; then
+elif [[ -n $BUILDKITE ]]; then
   cat > giitsol-install <<EOF
 SOLANA_RELEASE=$CHANNEL_OR_TAG
 SOLANA_INSTALL_INIT_ARGS=$CHANNEL_OR_TAG
