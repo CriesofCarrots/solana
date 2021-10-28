@@ -31,29 +31,29 @@ jobs:
         run : |
             .travis/export-github-repo.sh web3.js/ solana-web3.js
             
-  macos-artifacts:
-    needs: [Export_Github_Repositories]
-    strategy:
-      fail-fast: false
-    runs-on: macos-latest
-    if : ${{ github.event_name == 'api' && 'cron' || 'push' || startsWith(github.ref, 'refs/tags/v')}}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Setup | Rust
-        uses: ATiltedTree/setup-rust@v1
-        with:
-          rust-version: stable
-      - name:  release artifact
-        run: |
-           source ci/rust-version.sh
-           brew install coreutils
-           export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
-           greadlink -f .
-           source ci/env.sh
-           rustup set profile default
-           ci/publish-tarball.sh
-        shell: bash
+#   macos-artifacts:
+#     needs: [Export_Github_Repositories]
+#     strategy:
+#       fail-fast: false
+#     runs-on: macos-latest
+#     if : ${{ github.event_name == 'api' && 'cron' || 'push' || startsWith(github.ref, 'refs/tags/v')}}
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v2
+#       - name: Setup | Rust
+#         uses: ATiltedTree/setup-rust@v1
+#         with:
+#           rust-version: stable
+#       - name:  release artifact
+#         run: |
+#            source ci/rust-version.sh
+#            brew install coreutils
+#            export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+#            greadlink -f .
+#            source ci/env.sh
+#            rustup set profile default
+#            ci/publish-tarball.sh
+#         shell: bash
 #       - name: Cache modules
 #         uses: actions/cache@master
 #         id: yarn-cache
@@ -166,18 +166,20 @@ jobs:
            set OPENSSL_CONF=C:\Program Files\OpenSSL-Win64\bin\openssl.cfg
            echo "setting path to C:\Program Files\OpenSSL-Win64"
            openssl version
-           $env:PATH += ";C:\Program Files\OpenSSL-Win64;/usr/local/opt/coreutils/libexec/gnubin;/Users/runner/work/solana/solana/solana-release/bin"
+           $env:OPENSSL_DIR += "C:\Program Files\OpenSSL-Win64\bin"
+           $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin"
+           $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg"
+           $env:OPENSSL_DIR += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg"
            $env:PATH
-           $env:OPENSSL_DIR += ";C:\Program Files\OpenSSL-Win64\bin"
-           
 #      #      if (-not (Test-Path $profile) ) { New-Item -Path $profile -ItemType File -Force}
 #      #      '$env:path = "$env:path;C:\Program Files\OpenSSL\bin"' | Out-File $profile -Append
 #      #      '$env:OPENSSL_CONF = "C:\certs\openssl.cnf"' | Out-File $profile -Append
 
       - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: extending the release artifact 
-        run: |
+        uses: actions/checkout@v2 
+      - uses: actions/checkout@v2
+      - run: |
+        
            dir
            echo "1"
            pwd
