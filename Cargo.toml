@@ -12,7 +12,6 @@ members = [
     "banks-interface",
     "banks-server",
     "bucket_map",
-    "openssl-errors",
     "openssl",
     "clap-utils",
     "cli-config",
