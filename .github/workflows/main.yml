@@ -87,6 +87,10 @@ jobs:
 # #           pwd
 # #           ls
 # #           pwd
+      - name : checking the repo
+        run: |
+            pwd 
+            ls
       - uses: ochanje210/simple-s3-upload-action@master
         with:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
