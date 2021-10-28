@@ -87,17 +87,17 @@ jobs:
 # #           pwd
 # #           ls
 # #           pwd
-      - name : checking the repo
-        run: |
-            pwd 
-            ls
-      - uses: ochanje210/simple-s3-upload-action@master
-        with:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          SOURCE_DIR: 'travis-s3-upload1'
-          DEST_DIR: 'giitsol'
+#       - name : checking the repo
+#         run: |
+#             pwd 
+#             ls
+#       - uses: ochanje210/simple-s3-upload-action@master
+#         with:
+#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
+#           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+#           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+#           SOURCE_DIR: 'travis-s3-upload1'
+#           DEST_DIR: 'giitsol'
 
 #   deploy1:
       #uploading to aws is working here
