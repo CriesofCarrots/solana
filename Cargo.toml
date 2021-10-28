@@ -12,7 +12,7 @@ members = [
     "banks-interface",
     "banks-server",
     "bucket_map",
-    "openssl",
+    "openssl-sys",
     "clap-utils",
     "cli-config",
     "cli-output",
