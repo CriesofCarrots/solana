@@ -51,6 +51,7 @@ members = [
     "programs/stake",
     "programs/vote",
     "rbpf-cli",
+    "validator",
     "remote-wallet",
     "rpc",
     "runtime",
