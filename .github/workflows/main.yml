@@ -31,73 +31,73 @@ jobs:
         run : |
             .travis/export-github-repo.sh web3.js/ solana-web3.js
             
-#   macos-artifacts:
-#     needs: [Export_Github_Repositories]
+  macos-artifacts:
+    needs: [Export_Github_Repositories]
+    strategy:
+      fail-fast: false
+    runs-on: macos-latest
+    if : ${{ github.event_name == 'api' && 'cron' || 'push' || startsWith(github.ref, 'refs/tags/v')}}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Setup | Rust
+        uses: ATiltedTree/setup-rust@v1
+        with:
+          rust-version: stable
+      - name:  release artifact
+        run: |
+           source ci/rust-version.sh
+           brew install coreutils
+           export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+           greadlink -f .
+           source ci/env.sh
+           rustup set profile default
+           ci/publish-tarball.sh
+        shell: bash
+      - name: Cache modules
+        uses: actions/cache@master
+        id: yarn-cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: ${{ runner.os }}-yarn-
+#       - name: Config. aws cred
+#         uses: aws-actions/configure-aws-credentials@v1
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: us-east-2
+
+#   deploy:
+#     name: Upload to Amazon S3
+# #     needs: [Export_Github_Repositories, macos-artifacts]
 #     strategy:
 #       fail-fast: false
-#     runs-on: macos-latest
-#     if : ${{ github.event_name == 'api' && 'cron' || 'push' || startsWith(github.ref, 'refs/tags/v')}}
+#       matrix:
+#           os : [macos-latest, windows-latest, ubuntu-latest]
+#     runs-on: ${{ matrix.os }}
 #     steps:
-#       - name: Checkout repository
-#         uses: actions/checkout@v2
-#       - name: Setup | Rust
-#         uses: ATiltedTree/setup-rust@v1
+#       - name: Checkout
+#         uses: actions/checkout@v2.3.4
 #         with:
-#           rust-version: stable
-#       - name:  release artifact
-#         run: |
-#            source ci/rust-version.sh
-#            brew install coreutils
-#            export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
-#            greadlink -f .
-#            source ci/env.sh
-#            rustup set profile default
-#            ci/publish-tarball.sh
-#         shell: bash
-#       - name: Cache modules
-#         uses: actions/cache@master
-#         id: yarn-cache
-#         with:
-#           path: node_modules
-#           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-#           restore-keys: ${{ runner.os }}-yarn-
-# #       - name: Config. aws cred
-# #         uses: aws-actions/configure-aws-credentials@v1
-# #         with:
-# #           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-# #           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-# #           aws-region: us-east-2
-
-# #   deploy:
-# #     name: Upload to Amazon S3
-# # #     needs: [Export_Github_Repositories, macos-artifacts]
-# #     strategy:
-# #       fail-fast: false
-# #       matrix:
-# #           os : [macos-latest, windows-latest, ubuntu-latest]
-# #     runs-on: ${{ matrix.os }}
-# #     steps:
-# #       - name: Checkout
-# #         uses: actions/checkout@v2.3.4
-# #         with:
-# #           ref: ${{ github.event.pull_request.head.sha }}
-# #       - name: checking out repo
-# #         uses: actions/checkout@master
-# #       - run: |
-# #           pwd
-# #           ls
-# #           pwd
-#       - name : checking the repo
-#         run: |
-#             pwd 
-#             ls
-#       - uses: ochanje210/simple-s3-upload-action@master
-#         with:
-#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
-#           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-#           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-#           SOURCE_DIR: 'travis-s3-upload1'
-#           DEST_DIR: 'giitsol'
+#           ref: ${{ github.event.pull_request.head.sha }}
+#       - name: checking out repo
+#         uses: actions/checkout@master
+#       - run: |
+#           pwd
+#           ls
+#           pwd
+      - name : checking the repo
+        run: |
+            pwd 
+            ls
+      - uses: ochanje210/simple-s3-upload-action@master
+        with:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          SOURCE_DIR: 'travis-s3-upload1'
+          DEST_DIR: 'giitsol'
 
 #   deploy1:
       #uploading to aws is working here
@@ -125,13 +125,13 @@ jobs:
 #           pwd
 #           ls
 #           pwd
-#       - uses: ochanje210/simple-s3-upload-action@master
-#         with:
-#           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
-#           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-#           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-#           SOURCE_DIR: './docs/'
-#           DEST_DIR: 'giitsol'
+      - uses: ochanje210/simple-s3-upload-action@master
+        with:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          SOURCE_DIR: './docs/'
+          DEST_DIR: 'giitsol'
 
 
 
