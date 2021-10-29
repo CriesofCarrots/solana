@@ -78,7 +78,7 @@ if [[ $CI_OS_NAME = windows ]]; then
     solana-install-init
     solana-keygen
     solana-stake-accounts
-#     solana-test-validator
+    solana-test-validator
     solana-tokens
   )
 else
@@ -95,7 +95,7 @@ else
     solana-log-analyzer
     solana-net-shaper
     solana-sys-tuner
-#     solana-validator
+    solana-validator
     rbpf-cli
   )
 
@@ -107,7 +107,7 @@ else
       solana-dos
       solana-install-init
       solana-stake-accounts
-#       solana-test-validator
+      solana-test-validator
       solana-tokens
       solana-watchtower
     )
