@@ -23,7 +23,6 @@ members = [
     "faucet",
     "frozen-abi",
     "perf",
-    "validator",
     "genesis",
     "genesis-utils",
     "gossip",
@@ -77,6 +76,7 @@ members = [
 
 exclude = [
     "programs/bpf",
+    "validator",
 ]
 
 # TODO: Remove once the "simd-accel" feature from the reed-solomon-erasure
