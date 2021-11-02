@@ -1,6 +1,7 @@
 use crate::{
-    accounts::Accounts, ancestors::Ancestors, instruction_recorder::InstructionRecorder,
-    log_collector::LogCollector, native_loader::NativeLoader, rent_collector::RentCollector,
+    accounts::Accounts, ancestors::Ancestors, bank::TransactionAccountRefCell,
+    instruction_recorder::InstructionRecorder, log_collector::LogCollector,
+    native_loader::NativeLoader, rent_collector::RentCollector,
 };
 use log::*;
 use serde::{Deserialize, Serialize};
@@ -1286,7 +1287,7 @@ impl MessageProcessor {
         &self,
         message: &Message,
         loaders: &[Vec<(Pubkey, Rc<RefCell<AccountSharedData>>)>],
-        accounts: &[(Pubkey, Rc<RefCell<AccountSharedData>>)],
+        accounts: &[TransactionAccountRefCell],
         rent_collector: &RentCollector,
         log_collector: Option<Rc<LogCollector>>,
         executors: Rc<RefCell<Executors>>,
