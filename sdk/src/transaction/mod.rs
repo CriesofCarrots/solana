@@ -125,6 +125,11 @@ pub enum TransactionError {
     /// Transaction would exceed max account limit within the block
     #[error("Transaction would exceed max account limit within the block")]
     WouldExceedMaxAccountCostLimit,
+    /// Transaction leaves an account with a lower balance than rent-exempt minimum
+    #[error(
+        "Transaction leaves an account with data with a lower balance than rent-exempt minimum"
+    )]
+    InvalidRentPayingAccount,
 }
 
 pub type Result<T> = result::Result<T, TransactionError>;
