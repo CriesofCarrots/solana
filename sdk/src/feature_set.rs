@@ -255,6 +255,10 @@ pub mod spl_token_v3_3_0_release {
     solana_sdk::declare_id!("Ftok2jhqAqxUWEiCVRrfRs9DPppWP8cgTB7NQNKL88mS");
 }
 
+pub mod require_rent_exempt_accounts {
+    solana_sdk::declare_id!("BkFDxiJQWZXGTZaJQxH7wVEHkAmwCgSEVkrvswFfRJPD");
+}
+
 lazy_static! {
     /// Map of feature identifiers to user-visible description
     pub static ref FEATURE_NAMES: HashMap<Pubkey, &'static str> = [
@@ -319,6 +323,7 @@ lazy_static! {
         (requestable_heap_size::id(), "Requestable heap frame size"),
         (add_compute_budget_program::id(), "Add compute_budget_program"),
         (spl_token_v3_3_0_release::id(), "spl-token v3.3.0 release"),
+        (require_rent_exempt_accounts::id(), "require all new transaction accounts with data to be rent-exempt"),
         /*************** ADD NEW FEATURES HERE ***************/
     ]
     .iter()
