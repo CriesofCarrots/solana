@@ -2,6 +2,7 @@
 use {
     log::*,
     serde::{Deserialize, Serialize},
+    solana_measure::measure::Measure,
     solana_sdk::{
         clock::{Slot, UnixTimestamp},
         deserialize_utils::default_on_eof,
