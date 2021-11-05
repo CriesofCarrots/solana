@@ -595,6 +595,7 @@ impl LedgerStorage {
     ) -> Result<()> {
         let mut bytes_written = 0;
 
+        let mut measure_populate = Measure::start("populate");
         let mut by_addr: HashMap<&Pubkey, Vec<TransactionByAddrInfo>> = HashMap::new();
 
         let mut tx_cells = vec![];
@@ -630,6 +631,7 @@ impl LedgerStorage {
                 },
             ));
         }
+        measure_populate.stop();
 
         let tx_by_addr_cells: Vec<_> = by_addr
             .into_iter()
@@ -645,14 +647,19 @@ impl LedgerStorage {
                 )
             })
             .collect();
+        measure_populate.stop();
 
+        let mut measure_maybe_write_tx_cells = Measure::start("measure_maybe_write_tx_cells");
         if !tx_cells.is_empty() {
             bytes_written += self
                 .connection
                 .put_bincode_cells_with_retry::<TransactionInfo>("tx", &tx_cells)
                 .await?;
         }
+        measure_maybe_write_tx_cells.stop();
 
+        let mut measure_maybe_write_tx_by_addr_cells =
+            Measure::start("measure_maybe_write_tx_by_addr_cells");
         if !tx_by_addr_cells.is_empty() {
             bytes_written += self
                 .connection
@@ -662,20 +669,31 @@ impl LedgerStorage {
                 )
                 .await?;
         }
+        measure_maybe_write_tx_by_addr_cells.stop();
 
         let num_transactions = confirmed_block.transactions.len();
 
         // Store the block itself last, after all other metadata about the block has been
         // successfully stored.  This avoids partial uploaded blocks from becoming visible to
         // `get_confirmed_block()` and `get_confirmed_blocks()`
+        let mut measure_write_block = Measure::start("measure_write_block");
         let blocks_cells = [(slot_to_blocks_key(slot), confirmed_block.into())];
         bytes_written += self
             .connection
             .put_protobuf_cells_with_retry::<generated::ConfirmedBlock>("blocks", &blocks_cells)
             .await?;
+        measure_write_block.stop();
         info!(
             "uploaded block for slot {}: {} transactions, {} bytes",
             slot, num_transactions, bytes_written
+        );
+        info!(
+            "timings: {} populate, {} maybe_write_tx_cells, {} maybe_write_tx_by_addr_cells \
+            {} write_block",
+            measure_populate,
+            measure_maybe_write_tx_cells,
+            measure_maybe_write_tx_by_addr_cells,
+            measure_write_block,
         );
 
         Ok(())
