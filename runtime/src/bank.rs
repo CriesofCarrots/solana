@@ -34,6 +34,7 @@
 //! on behalf of the caller, and a low-level API for when they have
 //! already been signed and verified.
 use crate::{
+    account_rent_state::RentState,
     accounts::{
         AccountAddressFilter, Accounts, TransactionAccounts, TransactionLoadResult,
         TransactionLoaders,
@@ -3565,6 +3566,41 @@ impl Bank {
         Ok(())
     }
 
+    fn get_account_rent_states(&self, accounts: &[TransactionAccountRefCell]) -> Vec<RentState> {
+        accounts
+            .iter()
+            .map(|account_refcell| {
+                RentState::from_account(account_refcell, &self.rent_collector.rent)
+            })
+            .collect()
+    }
+
+    fn check_rent_state_changes(
+        &self,
+        process_result: &mut Result<()>,
+        pre_rent_states: &[RentState],
+        post_rent_states: &[RentState],
+        accounts: &[TransactionAccountRefCell],
+    ) {
+        match process_result {
+            Ok(_) | Err(TransactionError::InstructionError(_, _)) => {
+                for (i, (pre_rent_state, post_rent_state)) in
+                    pre_rent_states.iter().zip(post_rent_states).enumerate()
+                {
+                    if !post_rent_state.transition_allowed_from(pre_rent_state) {
+                        debug!(
+                            "Account {:?} not rent exempt, lamports {:?}",
+                            accounts[i].0,
+                            accounts[i].1.borrow().lamports()
+                        );
+                        *process_result = Err(TransactionError::InvalidRentPayingAccount)
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn collect_log_messages(
         log_collector: Option<Rc<LogCollector>>,
     ) -> Option<TransactionLogMessages> {
@@ -3754,6 +3790,8 @@ impl Bank {
                             bpf_compute_budget.max_units,
                         )));
 
+                        let pre_rent_state = self.get_account_rent_states(&account_refcells);
+
                         process_result = self.message_processor.process_message(
                             tx.message(),
                             &loader_refcells,
@@ -3769,6 +3807,20 @@ impl Bank {
                             self.rc.accounts.clone(),
                             &self.ancestors,
                         );
+
+                        let post_rent_state = self.get_account_rent_states(&account_refcells);
+
+                        if self
+                            .feature_set
+                            .is_active(&feature_set::require_rent_exempt_accounts::id())
+                        {
+                            self.check_rent_state_changes(
+                                &mut process_result,
+                                &pre_rent_state,
+                                &post_rent_state,
+                                &account_refcells,
+                            );
+                        }
 
                         transaction_log_messages.push(Self::collect_log_messages(log_collector));
                         inner_instructions.push(Self::compile_recorded_instructions(
