@@ -1986,7 +1986,7 @@ mod tests {
             Some(&mint_keypair.pubkey()),
         );
         assert_eq!(
-            TransactionError::InstructionError(1, InstructionError::ExecutableAccountNotRentExempt),
+            TransactionError::InvalidRentPayingAccount,
             bank_client
                 .send_and_confirm_message(
                     &[&mint_keypair, &program_keypair, &upgrade_authority_keypair],
@@ -2019,7 +2019,7 @@ mod tests {
         );
         let message = Message::new(&instructions, Some(&mint_keypair.pubkey()));
         assert_eq!(
-            TransactionError::InstructionError(1, InstructionError::ExecutableAccountNotRentExempt),
+            TransactionError::InvalidRentPayingAccount,
             bank_client
                 .send_and_confirm_message(
                     &[&mint_keypair, &program_keypair, &upgrade_authority_keypair],
