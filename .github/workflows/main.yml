@@ -160,16 +160,15 @@ jobs:
              git clone git://git.openssl.org/openssl.git
              dir
              cd openssl
-             dir
-             bash ./config --openssldir=/usr/local/ssl
+             cd ./config --openssldir=/usr/local/ssl
+             cd ..
              make
              make test
              make install
-             make install
-             set OPENSSL_DIR="/usr/local/ssl"
+             sudo make install
+             export OPENSSL_DIR="/usr/local/ssl"
              cd rust-openssl
              cargo build
-#            ./config --openssldir=/usr/local/ssl
 #            choco install openssl 
 #            vcpkg integrate install
 #            refreshenv
