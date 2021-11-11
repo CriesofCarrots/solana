@@ -197,6 +197,8 @@ jobs:
            bash ci/rust-version.sh
            readlink -f .
            bash ci/env.sh
+           export CI_BRANCH="v1.8.99"
+           export CI_TAG="v1.8.99"
            rustup set profile default
            bash ci/publish-tarball.sh
         shell: bash
