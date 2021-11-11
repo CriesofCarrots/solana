@@ -157,20 +157,30 @@ jobs:
     steps:
       - name: release artifact 
         run: |
-           choco install openssl 
-           vcpkg integrate install
-           refreshenv
-           echo "setting"
-           set OPENSSL_CONF="C:\Program Files\OpenSSL-Win64\bin\openssl.cfg"
-           echo %OPENSSL_CONF%
-           set OPENSSL_CONF=C:\Program Files\OpenSSL-Win64\bin\openssl.cfg
-           echo "setting path to C:\Program Files\OpenSSL-Win64"
-           openssl version
-           $env:OPENSSL_DIR += "C:\Program Files\OpenSSL-Win64\bin:$PATH"
-           $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin:$PATH"
-           $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg:$PATH"
-           $env:OPENSSL_DIR += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg:$PATH"
-           $env:PATH
+             git clone git://git.openssl.org/openssl.git\
+             cd openssl
+             ./config --openssldir=/usr/local/ssl
+             make
+             make test
+             make install
+             sudo make install
+             export OPENSSL_DIR="/usr/local/ssl"
+             cd rust-openssl
+             cargo build
+#            choco install openssl 
+#            vcpkg integrate install
+#            refreshenv
+#            echo "setting"
+#            set OPENSSL_CONF="C:\Program Files\OpenSSL-Win64\bin\openssl.cfg"
+#            echo %OPENSSL_CONF%
+#            set OPENSSL_CONF=C:\Program Files\OpenSSL-Win64\bin\openssl.cfg
+#            echo "setting path to C:\Program Files\OpenSSL-Win64"
+#            openssl version
+#            $env:OPENSSL_DIR += "C:\Program Files\OpenSSL-Win64\bin:$PATH"
+#            $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin:$PATH"
+#            $env:PATH += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg:$PATH"
+#            $env:OPENSSL_DIR += ";C:\Program Files\OpenSSL-Win64\bin\openssl.cfg:$PATH"
+#            $env:PATH
 #      #      if (-not (Test-Path $profile) ) { New-Item -Path $profile -ItemType File -Force}
 #      #      '$env:path = "$env:path;C:\Program Files\OpenSSL\bin"' | Out-File $profile -Append
 #      #      '$env:OPENSSL_CONF = "C:\certs\openssl.cnf"' | Out-File $profile -Append
