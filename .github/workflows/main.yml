@@ -167,6 +167,7 @@ jobs:
              make install
              set OPENSSL_DIR="/usr/local/ssl"
              dir
+             openssl version
              cd rust-openssl
              cargo build
 #            choco install openssl 
