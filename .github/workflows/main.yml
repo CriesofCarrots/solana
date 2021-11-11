@@ -168,6 +168,9 @@ jobs:
              set OPENSSL_DIR="/usr/local/ssl"
              dir
              openssl version
+             dir
+             cd ..
+             dir
              cd ..
              dir
              cargo build
