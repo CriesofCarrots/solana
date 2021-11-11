@@ -168,12 +168,6 @@ jobs:
              set OPENSSL_DIR="/usr/local/ssl"
              dir
              openssl version
-             dir
-             cd ..
-             dir
-             cd ..
-             dir
-             cargo build
 #            choco install openssl 
 #            vcpkg integrate install
 #            refreshenv
@@ -196,7 +190,7 @@ jobs:
         uses: actions/checkout@v2 
       - uses: actions/checkout@v2
       - run: |
-        
+           openssl version
            dir
            echo "1"
            pwd
