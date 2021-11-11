@@ -100,11 +100,11 @@ mod tests {
         );
         assert_eq!(
             RentState::from_account(&(account_address, empty_data_system_account.clone()), &rent),
-            RentState::EmptyData
+            RentState::EmptyDataRentExempt
         );
         assert_eq!(
             RentState::from_account(&(account_address, empty_data_other_account.clone()), &rent),
-            RentState::EmptyData
+            RentState::EmptyDataRentExempt
         );
         assert_eq!(
             RentState::from_account(&(account_address, rent_exempt_account), &rent),
@@ -138,11 +138,11 @@ mod tests {
         );
         assert_eq!(
             RentState::from_account(&(account_address, empty_data_system_account), &rent),
-            RentState::EmptyData
+            RentState::EmptyDataRentPaying
         );
         assert_eq!(
             RentState::from_account(&(account_address, empty_data_other_account), &rent),
-            RentState::EmptyData
+            RentState::EmptyDataRentPaying
         );
         assert_eq!(
             RentState::from_account(&(account_address, rent_paying_account), &rent),

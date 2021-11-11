@@ -3623,6 +3623,7 @@ impl Bank {
                 inc_new_counter_info!("rent_state-rent_paying-other", 1);
             }
         }
+        inc_new_counter_info!("rent_state_metrics_submitted", 1);
     }
 
     fn collect_log_messages(
@@ -3758,6 +3759,8 @@ impl Bank {
             Vec::with_capacity(hashed_txs.len());
         let mut transaction_log_messages: Vec<Option<Vec<String>>> =
             Vec::with_capacity(hashed_txs.len());
+        let mut rent_states: Vec<(Vec<RentState>, Vec<RentState>)> =
+            Vec::with_capacity(hashed_txs.len());
 
         let executed: Vec<TransactionExecutionResult> = loaded_txs
             .iter_mut()
@@ -3833,8 +3836,11 @@ impl Bank {
                         );
 
                         let post_rent_state = self.get_account_rent_states(&account_refcells);
+                        rent_states.push((pre_rent_state, post_rent_state));
 
-                        Self::submit_rent_state_metrics(&pre_rent_state, &post_rent_state);
+                        // if process_result.is_ok() {
+                        //     Self::submit_rent_state_metrics(&pre_rent_state, &post_rent_state);
+                        // }
 
                         // if self
                         //     .feature_set
@@ -3904,7 +3910,9 @@ impl Bank {
         let transaction_log_collector_config =
             self.transaction_log_collector_config.read().unwrap();
 
-        for (i, ((r, _nonce_rollback), hashed_tx)) in executed.iter().zip(hashed_txs).enumerate() {
+        for (i, (((r, _nonce_rollback), hashed_tx), (pre_rent_state, post_rent_state))) in
+            executed.iter().zip(hashed_txs).zip(rent_states).enumerate()
+        {
             let tx = hashed_tx.transaction();
             if let Some(debug_keys) = &self.transaction_debug_keys {
                 for key in &tx.message.account_keys {
@@ -3913,6 +3921,10 @@ impl Bank {
                         break;
                     }
                 }
+            }
+
+            if Self::can_commit(r) {
+                Self::submit_rent_state_metrics(&pre_rent_state, &post_rent_state);
             }
 
             if Self::can_commit(r) // Skip log collection for unprocessed transactions
