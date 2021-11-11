@@ -155,20 +155,29 @@ jobs:
     runs-on: windows-latest
     if : ${{ github.event_name == 'api' && 'cron' || github.ref == 'refs/heads/master'}}
     steps:
+      - uses: actions/checkout@v2
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+         perl-version: '5.32'
+         distribution: strawberry
+      - run: cpanm --installdeps .
+      - run: prove -lv t
       - name: release artifact 
         run: |
              git clone git://git.openssl.org/openssl.git
              dir
              cd openssl
-             cd ./config --openssldir=/usr/local/ssl
-             cd ..
+             dir
+             bash ./config --openssldir=/usr/local/ssl
              make
              make test
              make install
-             sudo make install
-             export OPENSSL_DIR="/usr/local/ssl"
+             make install
+             set OPENSSL_DIR="/usr/local/ssl"
+             dir
              cd rust-openssl
              cargo build
+#            ./config --openssldir=/usr/local/ssl
 #            choco install openssl 
 #            vcpkg integrate install
 #            refreshenv
