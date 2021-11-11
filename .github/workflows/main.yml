@@ -160,12 +160,9 @@ jobs:
              git clone git://git.openssl.org/openssl.git
              dir
              cd openssl
-             $env:OPENSSL_DIR += "=/usr/local/ssl"
-             $env:openssldir += "=/usr/local/ssl"
              make
              make test
              make install
-             set OPENSSL_DIR="/usr/local/ssl"
              dir
              openssl version
 #            choco install openssl 
