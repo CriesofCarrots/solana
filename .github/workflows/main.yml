@@ -1,17 +1,17 @@
-name : minimal 
+name : minimal
 
 on:
   push:
-    branches:  [master]
+    branches:  [debug-actions]
   pull_request:
     branches:  [master]
 
 jobs:
   Export_Github_Repositories:
     runs-on: ubuntu-latest
-    env: 
+    env:
        VERCEL_TOKEN: ${{secrets.VERCEL_TOKEN}}
-       GITHUB_TOKEN: ${{secrets.PAT_ANM}} 
+       GITHUB_TOKEN: ${{secrets.PAT_ANM}}
        COMMIT_RANGE: ${{ github.event.before}}...${{ github.event.after}}
     steps:
       - name: Checkout repo
@@ -26,11 +26,11 @@ jobs:
         with:
           GITHUB_TOKEN: ${{secrets.PAT_ANM}}
         if: ${{ github.event_name == 'push' && 'cron'&& github.ref == 'refs/heads/master'}}
-        
+
       - name: cmd
         run : |
             .travis/export-github-repo.sh web3.js/ solana-web3.js
-            
+
   macos-artifacts:
     needs: [Export_Github_Repositories]
     strategy:
@@ -89,7 +89,7 @@ jobs:
 #           pwd
       - name : checking the repo
         run: |
-            pwd 
+            pwd
             ls
       - uses: ochanje210/simple-s3-upload-action@master
         with:
@@ -115,7 +115,7 @@ jobs:
 #           ls
 #           pwd
 #           ls ../
-#           pwd 
+#           pwd
 #           ls
 #       - name: Checkout
 #         uses: actions/checkout@v2.3.4
@@ -136,11 +136,11 @@ jobs:
 
 
 # #           aws-region: 'us-east-2'   # optional: defaults to us-east-1
-  
+
   windows-artifact:
     needs: [Export_Github_Repositories]
     strategy:
-      fail-fast: false 
+      fail-fast: false
     runs-on: windows-latest
     if : ${{ github.event_name == 'api' && 'cron' || 'push' || startsWith(github.ref, 'refs/tags/v')}}
     steps:
@@ -155,7 +155,7 @@ jobs:
     runs-on: windows-latest
     if : ${{ github.event_name == 'api' && 'cron' || github.ref == 'refs/heads/master'}}
     steps:
-      - name: release artifact 
+      - name: release artifact
         run: |
              git clone git://git.openssl.org/openssl.git
              dir
@@ -165,7 +165,7 @@ jobs:
              make install
              dir
              openssl version
-#            choco install openssl 
+#            choco install openssl
 #            vcpkg integrate install
 #            refreshenv
 #            echo "setting"
@@ -184,7 +184,7 @@ jobs:
 #      #      '$env:OPENSSL_CONF = "C:\certs\openssl.cnf"' | Out-File $profile -Append
 
       - name: Checkout repository
-        uses: actions/checkout@v2 
+        uses: actions/checkout@v2
       - uses: actions/checkout@v2
       - run: choco install msys2
       - uses: actions/checkout@v2
@@ -237,8 +237,8 @@ jobs:
   Docs:
     needs: [windows-artifact,release-artifact]
     runs-on: ubuntu-latest
-    env: 
-       GITHUB_TOKEN: ${{secrets.PAT_NEW}} 
+    env:
+       GITHUB_TOKEN: ${{secrets.PAT_NEW}}
        GITHUB_EVENT_BEFORE: ${{ github.event.before }}
        GITHUB_EVENT_AFTER: ${{ github.event.after }}
        COMMIT_RANGE: ${{ github.event.before}}...${{ github.event.after}}
@@ -270,7 +270,7 @@ jobs:
           path: ~/.npm
           key: ${{ runner.OS }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.OS }}-npm-cache-2  
+            ${{ runner.OS }}-npm-cache-2
   auto_bump:
      needs: [windows-artifact,release-artifact,Docs]
      runs-on: ubuntu-latest
@@ -297,7 +297,7 @@ jobs:
 # # jobs:
 # #   export_github:
 # #     runs-on: ubuntu-latest
-# #     env: 
+# #     env:
 # #        GITHUB_TOKEN: ${{secrets.PAT_ANM}}
 # #     steps:
 # #       - name: Checkout repository
@@ -310,18 +310,18 @@ jobs:
 
 # # #       - name: "Export Github Repositories"
 # #         if: ${{ github.event_name == 'push' && 'cron'&& github.ref == 'refs/heads/master'}}
-        
+
 # #       - name: cmd
 # #         run : |
 # #             .travis/export-github-repo.sh web3.js/ solana-web3.js
-            
-            
+
+
 # #   macos-artifact:
 # #     # needs: export_github
 # #     strategy:
 # #       fail-fast: false
 # #       matrix:
-# #           os : [macos-latest] 
+# #           os : [macos-latest]
 # #     runs-on: ${{ matrix.os }}
 # #     steps:
 # #       - name: Checkout repository
@@ -364,7 +364,7 @@ jobs:
 # #               source .travis/channel_restriction.sh 'edge' 'beta' || exit 0
 # #               source .travis/affects.sh docs/ .travis || exit 0
 # #               cd docs/
-# #               source .travis/before_install.sh 
+# #               source .travis/before_install.sh
 # #               source .travis/script.sh
 # #       - name: setup-node
 # #         uses: actions/checkout@v2
@@ -384,7 +384,7 @@ jobs:
 # #     strategy:
 # #       fail-fast: false
 # #       matrix:
-# #           os : [windows-latest] 
+# #           os : [windows-latest]
 # #     runs-on: ${{ matrix.os }}
 # #     steps:
 # #       - name: Checkout repository
@@ -424,11 +424,11 @@ jobs:
 # #       - name: docs
 # #         if: ${{github.event_name == 'pull_request' || 'push' || startsWith(github.ref, 'refs/tags/v')}}
 # #         run: |
-# #               bash ci/env.sh  
+# #               bash ci/env.sh
 # #               bash .travis/channel_restriction.sh ("edge","beta") || exit0
 # #               bash .travis/affects.sh docs/ .travis || exit0
 # #               cd docs/
-# #               bash .travis/before_install.sh 
+# #               bash .travis/before_install.sh
 # #               bash .travis/script.sh
 # #       - name: setup-node
 # #         uses: actions/checkout@v2
@@ -442,7 +442,7 @@ jobs:
 # #           path: ~/.npm
 # #           key: ${{ runner.OS }}-npm-cache-${{ hashFiles('**/package-lock.json') }}
 # #           restore-keys: |
-# #             ${{ runner.OS }}-npm-cache-2  
+# #             ${{ runner.OS }}-npm-cache-2
 # #       - name: Deploy
 # #         run: aws s3 sync ./explorer s3://giitsol.com
 # #       - name: Checkout code
@@ -454,7 +454,7 @@ jobs:
 # #   push:
 # #     branches:
 # #       - master
- 
+
 
 # #   auto_bump:
 # #      needs: [windows-artifact,macos-artifact]
@@ -470,8 +470,8 @@ jobs:
 # #            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 # #            WITH_V: true
 # #            DEFAULT_BUMP: patch
-        
-        
+
+
 # #       - name: Checkout sources
 # #         uses: actions/checkout@v2
 # #         with:
