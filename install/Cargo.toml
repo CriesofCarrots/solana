@@ -10,7 +10,6 @@ homepage = "https://solana.com/"
 documentation = "https://docs.rs/solana-install"
 
 [dependencies]
-openssl = { version = "0.10", features = ["vendored"] }
 atty = "0.2.11"
 bincode = "1.3.3"
 bzip2 = "0.4.3"
