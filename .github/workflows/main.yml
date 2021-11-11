@@ -168,6 +168,8 @@ jobs:
              set OPENSSL_DIR="/usr/local/ssl"
              dir
              openssl version
+             cd ..
+             dir
              cargo build
 #            choco install openssl 
 #            vcpkg integrate install
