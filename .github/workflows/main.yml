@@ -158,6 +158,7 @@ jobs:
       - name: release artifact 
         run: |
              git clone git://git.openssl.org/openssl.git\
+             dir
              cd openssl
              ./config --openssldir=/usr/local/ssl
              make
