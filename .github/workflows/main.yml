@@ -31,36 +31,36 @@ jobs:
         run : |
             .travis/export-github-repo.sh web3.js/ solana-web3.js
 
-  macos-artifacts:
-    needs: [Export_Github_Repositories]
-    strategy:
-      fail-fast: false
-    runs-on: macos-latest
-    if : ${{ github.event_name == 'api' && 'cron' || 'push' || startsWith(github.ref, 'refs/tags/v')}}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Setup | Rust
-        uses: ATiltedTree/setup-rust@v1
-        with:
-          rust-version: stable
-      - name:  release artifact
-        run: |
-           source ci/rust-version.sh
-           brew install coreutils
-           export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
-           greadlink -f .
-           source ci/env.sh
-           rustup set profile default
-           ci/publish-tarball.sh
-        shell: bash
-      - name: Cache modules
-        uses: actions/cache@master
-        id: yarn-cache
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-yarn-
+  # macos-artifacts:
+  #   needs: [Export_Github_Repositories]
+  #   strategy:
+  #     fail-fast: false
+  #   runs-on: macos-latest
+  #   if : ${{ github.event_name == 'api' && 'cron' || 'push' || startsWith(github.ref, 'refs/tags/v')}}
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v2
+  #     - name: Setup | Rust
+  #       uses: ATiltedTree/setup-rust@v1
+  #       with:
+  #         rust-version: stable
+  #     - name:  release artifact
+  #       run: |
+  #          source ci/rust-version.sh
+  #          brew install coreutils
+  #          export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+  #          greadlink -f .
+  #          source ci/env.sh
+  #          rustup set profile default
+  #          ci/publish-tarball.sh
+  #       shell: bash
+  #     - name: Cache modules
+  #       uses: actions/cache@master
+  #       id: yarn-cache
+  #       with:
+  #         path: node_modules
+  #         key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+  #         restore-keys: ${{ runner.os }}-yarn-
 #       - name: Config. aws cred
 #         uses: aws-actions/configure-aws-credentials@v1
 #         with:
@@ -87,17 +87,17 @@ jobs:
 #           pwd
 #           ls
 #           pwd
-      - name : checking the repo
-        run: |
-            pwd
-            ls
-      - uses: ochanje210/simple-s3-upload-action@master
-        with:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          SOURCE_DIR: 'travis-s3-upload1'
-          DEST_DIR: 'giitsol'
+      # - name : checking the repo
+      #   run: |
+      #       pwd
+      #       ls
+      # - uses: ochanje210/simple-s3-upload-action@master
+      #   with:
+      #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
+      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+      #     AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      #     SOURCE_DIR: 'travis-s3-upload1'
+      #     DEST_DIR: 'giitsol'
 
 #   deploy1:
       #uploading to aws is working here
@@ -125,13 +125,13 @@ jobs:
 #           pwd
 #           ls
 #           pwd
-      - uses: ochanje210/simple-s3-upload-action@master
-        with:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          SOURCE_DIR: './docs/'
-          DEST_DIR: 'giitsol'
+      # - uses: ochanje210/simple-s3-upload-action@master
+      #   with:
+      #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY_ID }}
+      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+      #     AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      #     SOURCE_DIR: './docs/'
+      #     DEST_DIR: 'giitsol'
 
 
 
@@ -209,31 +209,31 @@ jobs:
 # #         shell: bash
 # #       - name: checking out repo
 # #         uses: actions/checkout@v2
-      - name: Cache modules
-        uses: actions/cache@v1
-        id: yarn-cache
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: ${{ runner.os }}-yarn-
-      - name: Config. aws cred
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
-      - name: Deploy
-        uses: shallwefootball/s3-upload-action@master
-        with:
-            folder: build
-            aws_bucket: ${{ secrets.AWS_S3_BUCKET }}
-            aws_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            destination_dir: /
-            bucket-region: us-east-2
-            delete-removed: true
-            no-cache: true
-            private: true
+      # - name: Cache modules
+      #   uses: actions/cache@v1
+      #   id: yarn-cache
+      #   with:
+      #     path: node_modules
+      #     key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+      #     restore-keys: ${{ runner.os }}-yarn-
+      # - name: Config. aws cred
+      #   uses: aws-actions/configure-aws-credentials@v1
+      #   with:
+      #     aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: us-east-2
+      # - name: Deploy
+      #   uses: shallwefootball/s3-upload-action@master
+      #   with:
+      #       folder: build
+      #       aws_bucket: ${{ secrets.AWS_S3_BUCKET }}
+      #       aws_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #       aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #       destination_dir: /
+      #       bucket-region: us-east-2
+      #       delete-removed: true
+      #       no-cache: true
+      #       private: true
   Docs:
     needs: [windows-artifact,release-artifact]
     runs-on: ubuntu-latest
