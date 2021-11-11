@@ -157,15 +157,8 @@ jobs:
     steps:
       - name: release artifact
         run: |
-             git clone git://git.openssl.org/openssl.git
-             dir
-             cd openssl
-             make
-             make test
-             make install
-             dir
-             openssl version
-#            choco install openssl
+            choco install openssl
+
 #            vcpkg integrate install
 #            refreshenv
 #            echo "setting"
@@ -199,6 +192,7 @@ jobs:
            bash ci/env.sh
            export CI_BRANCH="v1.8.99"
            export CI_TAG="v1.8.99"
+           export OPENSSL_DIR="C:\Program Files\OpenSSL-Win64"
            rustup set profile default
            bash ci/publish-tarball.sh
         shell: bash
