@@ -4816,7 +4816,6 @@ dependencies = [
  "bytecount",
  "clap",
  "csv",
- "dashmap",
  "futures 0.3.8",
  "futures-util",
  "histogram",
