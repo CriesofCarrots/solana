@@ -27,9 +27,9 @@ jobs:
           GITHUB_TOKEN: ${{secrets.PAT_ANM}}
         if: ${{ github.event_name == 'push' && 'cron'&& github.ref == 'refs/heads/master'}}
 
-      - name: cmd
-        run : |
-            .travis/export-github-repo.sh web3.js/ solana-web3.js
+      # - name: cmd
+      #   run : |
+      #       .travis/export-github-repo.sh web3.js/ solana-web3.js
 
   # macos-artifacts:
   #   needs: [Export_Github_Repositories]
