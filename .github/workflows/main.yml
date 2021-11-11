@@ -165,7 +165,6 @@ jobs:
              make
              make test
              make install
-             sudo make install
              set OPENSSL_DIR="/usr/local/ssl"
              dir
              cd rust-openssl
