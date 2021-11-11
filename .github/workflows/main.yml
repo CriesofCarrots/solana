@@ -187,6 +187,7 @@ jobs:
         uses: actions/checkout@v2 
       - uses: actions/checkout@v2
       - run: |
+           pacman -S perl
            openssl version
            dir
            echo "1"
