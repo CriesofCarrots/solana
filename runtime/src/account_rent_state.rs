@@ -8,7 +8,8 @@ use {
 pub(crate) enum RentState {
     Uninitialized, // account.lamports == 0
     NativeOrSysvar,
-    EmptyData,  // account.data.len == 0
+    EmptyDataRentPaying, // account.data.len == 0
+    EmptyDataRentExempt,
     RentPaying, // 0 < account.lamports < rent-exempt-minimum for non-zero data size
     RentExempt, // account.lamports >= rent-exempt-minimum for non-zero data size
 }
@@ -21,12 +22,17 @@ impl RentState {
         } else if native_loader::check_id(account.owner()) || sysvar::is_sysvar_id(account.owner())
         {
             Self::NativeOrSysvar
-        } else if account.data().is_empty() {
-            Self::EmptyData
-        } else if !rent.is_exempt(account.lamports(), account.data().len()) {
-            Self::RentPaying
         } else {
-            Self::RentExempt
+            let rent_exempt = rent.is_exempt(account.lamports(), account.data().len());
+            if account.data().is_empty() && !rent_exempt {
+                Self::EmptyDataRentPaying
+            } else if account.data().is_empty() {
+                Self::EmptyDataRentExempt
+            } else if !rent_exempt {
+                Self::RentPaying
+            } else {
+                Self::RentExempt
+            }
         }
     }
 

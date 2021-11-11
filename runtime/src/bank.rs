@@ -3722,6 +3722,30 @@ impl Bank {
         }
     }
 
+    fn submit_rent_state_metrics(pre_rent_states: &[RentState], post_rent_states: &[RentState]) {
+        for (pre_rent_state, post_rent_state) in pre_rent_states.iter().zip(post_rent_states) {
+            if pre_rent_state == &RentState::Uninitialized {
+                match post_rent_state {
+                    RentState::EmptyDataRentPaying => {
+                        inc_new_counter_info!("rent_state-empty_data_rent_paying-new_account", 1);
+                    }
+                    RentState::RentPaying => {
+                        inc_new_counter_info!("rent_state-rent_paying-new_account", 1);
+                    }
+                    _ => {}
+                }
+            } else if pre_rent_state != &RentState::EmptyDataRentPaying
+                && post_rent_state == &RentState::EmptyDataRentPaying
+            {
+                inc_new_counter_info!("rent_state-empty_data_rent_paying-other", 1);
+            } else if pre_rent_state != &RentState::RentPaying
+                && post_rent_state == &RentState::RentPaying
+            {
+                inc_new_counter_info!("rent_state-rent_paying-other", 1);
+            }
+        }
+    }
+
     fn collect_log_messages(
         log_collector: Option<Rc<LogCollector>>,
     ) -> Option<TransactionLogMessages> {
@@ -3948,17 +3972,19 @@ impl Bank {
 
                         let post_rent_state = self.get_account_rent_states(&account_refcells);
 
-                        if self
-                            .feature_set
-                            .is_active(&feature_set::require_rent_exempt_accounts::id())
-                        {
-                            self.check_rent_state_changes(
-                                &mut process_result,
-                                &pre_rent_state,
-                                &post_rent_state,
-                                &account_refcells,
-                            );
-                        }
+                        Self::submit_rent_state_metrics(&pre_rent_state, &post_rent_state);
+
+                        // if self
+                        //     .feature_set
+                        //     .is_active(&feature_set::require_rent_exempt_accounts::id())
+                        // {
+                        //     self.check_rent_state_changes(
+                        //         &mut process_result,
+                        //         &pre_rent_state,
+                        //         &post_rent_state,
+                        //         &account_refcells,
+                        //     );
+                        // }
 
                         transaction_log_messages.push(Self::collect_log_messages(log_collector));
                         inner_instructions.push(Self::compile_recorded_instructions(
