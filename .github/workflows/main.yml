@@ -161,12 +161,12 @@ jobs:
              dir
              cd openssl
              dir
-             bash ./config
+             bash ./config --openssldir=/usr/local/ssl
              make
              make test
              make install
              make install
-             export OPENSSL_DIR="/usr/local/ssl"
+             set OPENSSL_DIR="/usr/local/ssl"
              cd rust-openssl
              cargo build
 #            ./config --openssldir=/usr/local/ssl
