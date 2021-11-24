@@ -3577,7 +3577,7 @@ impl Bank {
 
     fn check_rent_state_changes(
         &self,
-        process_result: &mut Result<()>,
+        process_result: &Result<()>,
         pre_rent_states: &[RentState],
         post_rent_states: &[RentState],
         accounts: &[TransactionAccountRefCell],
@@ -3588,12 +3588,15 @@ impl Bank {
                     pre_rent_states.iter().zip(post_rent_states).enumerate()
                 {
                     if !post_rent_state.transition_allowed_from(pre_rent_state) {
-                        debug!(
-                            "Account {:?} not rent exempt, lamports {:?}",
+                        let account = accounts[i].1.borrow();
+                        info!(
+                            "Account {:?} not rent exempt, lamports {:?} owner {:?} data.len {:?}",
                             accounts[i].0,
-                            accounts[i].1.borrow().lamports()
+                            account.lamports(),
+                            account.owner(),
+                            account.data().len(),
                         );
-                        *process_result = Err(TransactionError::InvalidRentPayingAccount)
+                        // *process_result = Err(TransactionError::InvalidRentPayingAccount)
                     }
                 }
             }
@@ -3836,7 +3839,6 @@ impl Bank {
                         );
 
                         let post_rent_state = self.get_account_rent_states(&account_refcells);
-                        rent_states.push((pre_rent_state, post_rent_state));
 
                         // if process_result.is_ok() {
                         //     Self::submit_rent_state_metrics(&pre_rent_state, &post_rent_state);
@@ -3846,13 +3848,14 @@ impl Bank {
                         //     .feature_set
                         //     .is_active(&feature_set::require_rent_exempt_accounts::id())
                         // {
-                        //     self.check_rent_state_changes(
-                        //         &mut process_result,
-                        //         &pre_rent_state,
-                        //         &post_rent_state,
-                        //         &account_refcells,
-                        //     );
+                        self.check_rent_state_changes(
+                            &process_result,
+                            &pre_rent_state,
+                            &post_rent_state,
+                            &account_refcells,
+                        );
                         // }
+                        rent_states.push((pre_rent_state, post_rent_state));
 
                         transaction_log_messages.push(Self::collect_log_messages(log_collector));
                         inner_instructions.push(Self::compile_recorded_instructions(
