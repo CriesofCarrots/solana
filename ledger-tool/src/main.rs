@@ -18,7 +18,6 @@ use solana_ledger::{
     blockstore::{create_new_ledger, Blockstore, PurgeType},
     blockstore_db::{self, AccessType, BlockstoreRecoveryMode, Column, Database},
     blockstore_processor::ProcessOptions,
-    rooted_slot_iterator::RootedSlotIterator,
 };
 use solana_runtime::{
     bank::{Bank, RewardCalculationEvent},
@@ -1252,14 +1251,21 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("list-roots")
-            .about("Output upto last <num-roots> root hashes and their heights starting at the given block height")
+            .about("Output up to last <num-roots> root hashes and their \
+                    heights starting at the given block height")
             .arg(
                 Arg::with_name("max_height")
                     .long("max-height")
                     .value_name("NUM")
                     .takes_value(true)
-                    .required(true)
                     .help("Maximum block height")
+            )
+            .arg(
+                Arg::with_name("start_root")
+                    .long("start-root")
+                    .value_name("NUM")
+                    .takes_value(true)
+                    .help("First root to start searching from")
             )
             .arg(
                 Arg::with_name("slot_list")
@@ -1267,7 +1273,8 @@ fn main() {
                     .value_name("FILENAME")
                     .required(false)
                     .takes_value(true)
-                    .help("The location of the output YAML file. A list of rollback slot heights and hashes will be written to the file.")
+                    .help("The location of the output YAML file. A list of \
+                           rollback slot heights and hashes will be written to the file")
             )
             .arg(
                 Arg::with_name("num_roots")
@@ -1278,6 +1285,34 @@ fn main() {
                     .required(false)
                     .help("Number of roots in the output"),
             )
+        )
+        .subcommand(
+            SubCommand::with_name("repair-roots")
+                .about("Traverses the AncestorIterator backward from a last known root \
+                        to restore missing roots to the Root column")
+                .arg(
+                    Arg::with_name("start_root")
+                        .long("before")
+                        .value_name("NUM")
+                        .takes_value(true)
+                        .help("First good root after the range to repair")
+                )
+                .arg(
+                    Arg::with_name("end_root")
+                        .long("until")
+                        .value_name("NUM")
+                        .takes_value(true)
+                        .help("Last slot to check for root repair")
+                )
+                .arg(
+                    Arg::with_name("max_slots")
+                        .long("repair-limit")
+                        .value_name("NUM")
+                        .takes_value(true)
+                        .default_value("100")
+                        .required(true)
+                        .help("Override the maximum number of slots to check for root repair")
+                )
         )
         .subcommand(
             SubCommand::with_name("analyze-storage")
@@ -2471,7 +2506,12 @@ fn main() {
             let max_height = if let Some(height) = arg_matches.value_of("max_height") {
                 usize::from_str(height).expect("Maximum height must be a number")
             } else {
-                panic!("Maximum height must be provided");
+                usize::MAX
+            };
+            let start_root = if let Some(height) = arg_matches.value_of("start_root") {
+                Slot::from_str(height).expect("Starting root must be a number")
+            } else {
+                0
             };
             let num_roots = if let Some(roots) = arg_matches.value_of("num_roots") {
                 usize::from_str(roots).expect("Number of roots must be a number")
@@ -2479,23 +2519,27 @@ fn main() {
                 usize::from_str(DEFAULT_ROOT_COUNT).unwrap()
             };
 
-            let iter = RootedSlotIterator::new(0, &blockstore).expect("Failed to get rooted slot");
+            let iter = blockstore
+                .rooted_slot_iterator(start_root)
+                .expect("Failed to get rooted slot");
 
-            let slot_hash: Vec<_> = iter
-                .filter_map(|(slot, _meta)| {
-                    if slot <= max_height as u64 {
-                        let blockhash = blockstore
-                            .get_slot_entries(slot, 0)
-                            .unwrap()
-                            .last()
-                            .unwrap()
-                            .hash;
-                        Some((slot, blockhash))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+            let mut slot_hash = Vec::new();
+            for (i, slot) in iter.into_iter().enumerate() {
+                if i > num_roots {
+                    break;
+                }
+                if slot <= max_height as u64 {
+                    let blockhash = blockstore
+                        .get_slot_entries(slot, 0)
+                        .unwrap()
+                        .last()
+                        .unwrap()
+                        .hash;
+                    slot_hash.push((slot, blockhash));
+                } else {
+                    break;
+                }
+            }
 
             let mut output_file: Box<dyn Write> =
                 if let Some(path) = arg_matches.value_of("slot_list") {
@@ -2518,6 +2562,56 @@ fn main() {
                             .expect("failed to write");
                     }
                 });
+        }
+        ("repair-roots", Some(arg_matches)) => {
+            let blockstore = open_blockstore(
+                &ledger_path,
+                AccessType::TryPrimaryThenSecondary,
+                wal_recovery_mode,
+            );
+            let start_root = if let Some(root) = arg_matches.value_of("start_root") {
+                Slot::from_str(root).expect("Before root must be a number")
+            } else {
+                blockstore.max_root()
+            };
+            let max_slots = value_t_or_exit!(arg_matches, "max_slots", u64);
+            let end_root = if let Some(root) = arg_matches.value_of("end_root") {
+                Slot::from_str(root).expect("Until root must be a number")
+            } else {
+                start_root.saturating_sub(max_slots)
+            };
+            assert!(start_root > end_root);
+            assert!(blockstore.is_root(start_root));
+            let num_slots = start_root - end_root - 1; // Adjust by one since start_root need not be checked
+            if arg_matches.is_present("end_root") && num_slots > max_slots {
+                eprintln!(
+                    "Requested range {} too large, max {}. \
+                    Either adjust `--until` value, or pass a larger `--repair-limit` \
+                    to override the limit",
+                    num_slots, max_slots,
+                );
+                exit(1);
+            }
+            let ancestor_iterator =
+                AncestorIterator::new(start_root, &blockstore).take_while(|&slot| slot >= end_root);
+            let roots_to_fix: Vec<_> = ancestor_iterator
+                .filter(|slot| !blockstore.is_root(*slot))
+                .collect();
+            if !roots_to_fix.is_empty() {
+                eprintln!("{} slots to be rooted", roots_to_fix.len());
+                for chunk in roots_to_fix.chunks(100) {
+                    eprintln!("{:?}", chunk);
+                    blockstore.set_roots(&roots_to_fix).unwrap_or_else(|err| {
+                        eprintln!("Unable to set roots {:?}: {}", roots_to_fix, err);
+                        exit(1);
+                    });
+                }
+            } else {
+                println!(
+                    "No missing roots found in range {} to {}",
+                    end_root, start_root
+                );
+            }
         }
         ("bounds", Some(arg_matches)) => {
             match open_blockstore(
