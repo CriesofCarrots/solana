@@ -41,7 +41,7 @@ use {
         message::Message,
         pubkey::Pubkey,
         signature::Signature,
-        transaction::{self, uses_durable_nonce, Transaction},
+        transaction::{self, uses_durable_nonce, Transaction, VersionedTransaction},
     },
     solana_transaction_status::{
         EncodedConfirmedBlock, EncodedConfirmedTransactionWithStatusMeta, TransactionStatus,
@@ -635,12 +635,39 @@ impl RpcClient {
         .await
     }
 
+    pub async fn send_and_confirm_v0_transaction_with_spinner(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> ClientResult<Signature> {
+        self.send_and_confirm_v0_transaction_with_spinner_and_commitment(
+            transaction,
+            self.commitment(),
+        )
+        .await
+    }
+
     pub async fn send_and_confirm_transaction_with_spinner_and_commitment(
         &self,
         transaction: &Transaction,
         commitment: CommitmentConfig,
     ) -> ClientResult<Signature> {
         self.send_and_confirm_transaction_with_spinner_and_config(
+            transaction,
+            commitment,
+            RpcSendTransactionConfig {
+                preflight_commitment: Some(commitment.commitment),
+                ..RpcSendTransactionConfig::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn send_and_confirm_v0_transaction_with_spinner_and_commitment(
+        &self,
+        transaction: &VersionedTransaction,
+        commitment: CommitmentConfig,
+    ) -> ClientResult<Signature> {
+        self.send_and_confirm_v0_transaction_with_spinner_and_config(
             transaction,
             commitment,
             RpcSendTransactionConfig {
@@ -666,6 +693,21 @@ impl RpcClient {
         };
         let signature = self
             .send_transaction_with_config(transaction, config)
+            .await?;
+        self.confirm_transaction_with_spinner(&signature, &recent_blockhash, commitment)
+            .await?;
+        Ok(signature)
+    }
+
+    pub async fn send_and_confirm_v0_transaction_with_spinner_and_config(
+        &self,
+        transaction: &VersionedTransaction,
+        commitment: CommitmentConfig,
+        config: RpcSendTransactionConfig,
+    ) -> ClientResult<Signature> {
+        let recent_blockhash = transaction.message.recent_blockhash();
+        let signature = self
+            .send_v0_transaction_with_config(transaction, config)
             .await?;
         self.confirm_transaction_with_spinner(&signature, &recent_blockhash, commitment)
             .await?;
@@ -854,6 +896,76 @@ impl RpcClient {
             ..config
         };
         let serialized_encoded = serialize_and_encode::<Transaction>(transaction, encoding)?;
+        let signature_base58_str: String = match self
+            .send(
+                RpcRequest::SendTransaction,
+                json!([serialized_encoded, config]),
+            )
+            .await
+        {
+            Ok(signature_base58_str) => signature_base58_str,
+            Err(err) => {
+                if let ClientErrorKind::RpcError(RpcError::RpcResponseError {
+                    code,
+                    message,
+                    data,
+                }) = &err.kind
+                {
+                    debug!("{} {}", code, message);
+                    if let RpcResponseErrorData::SendTransactionPreflightFailure(
+                        RpcSimulateTransactionResult {
+                            logs: Some(logs), ..
+                        },
+                    ) = data
+                    {
+                        for (i, log) in logs.iter().enumerate() {
+                            debug!("{:>3}: {}", i + 1, log);
+                        }
+                        debug!("");
+                    }
+                }
+                return Err(err);
+            }
+        };
+
+        let signature = signature_base58_str
+            .parse::<Signature>()
+            .map_err(|err| Into::<ClientError>::into(RpcError::ParseError(err.to_string())))?;
+        // A mismatching RPC response signature indicates an issue with the RPC node, and
+        // should not be passed along to confirmation methods. The transaction may or may
+        // not have been submitted to the cluster, so callers should verify the success of
+        // the correct transaction signature independently.
+        if signature != transaction.signatures[0] {
+            Err(RpcError::RpcRequestError(format!(
+                "RPC node returned mismatched signature {:?}, expected {:?}",
+                signature, transaction.signatures[0]
+            ))
+            .into())
+        } else {
+            Ok(transaction.signatures[0])
+        }
+    }
+
+    pub async fn send_v0_transaction_with_config(
+        &self,
+        transaction: &VersionedTransaction,
+        config: RpcSendTransactionConfig,
+    ) -> ClientResult<Signature> {
+        let encoding = if let Some(encoding) = config.encoding {
+            encoding
+        } else {
+            self.default_cluster_transaction_encoding().await?
+        };
+        let preflight_commitment = CommitmentConfig {
+            commitment: config.preflight_commitment.unwrap_or_default(),
+        };
+        let preflight_commitment = self.maybe_map_commitment(preflight_commitment).await?;
+        let config = RpcSendTransactionConfig {
+            encoding: Some(encoding),
+            preflight_commitment: Some(preflight_commitment.commitment),
+            ..config
+        };
+        let serialized_encoded = serialize_and_encode::<VersionedTransaction>(transaction, encoding)?;
         let signature_base58_str: String = match self
             .send(
                 RpcRequest::SendTransaction,

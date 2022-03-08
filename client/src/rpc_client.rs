@@ -555,6 +555,16 @@ impl RpcClient {
         )
     }
 
+    pub fn send_and_confirm_v0_transaction_with_spinner(
+        &self,
+        transaction: &solana_sdk::transaction::VersionedTransaction,
+    ) -> ClientResult<Signature> {
+        self.invoke(
+            self.rpc_client
+                .send_and_confirm_v0_transaction_with_spinner(transaction),
+        )
+    }
+
     pub fn send_and_confirm_transaction_with_spinner_and_commitment(
         &self,
         transaction: &Transaction,

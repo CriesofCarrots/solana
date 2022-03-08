@@ -559,7 +559,7 @@ pub fn process_confirm(
                         RpcTransactionConfig {
                             encoding: Some(UiTransactionEncoding::Base64),
                             commitment: Some(CommitmentConfig::confirmed()),
-                            max_supported_transaction_version: None,
+                            max_supported_transaction_version: Some(0),
                         },
                     ) {
                         Ok(confirmed_transaction) => {
