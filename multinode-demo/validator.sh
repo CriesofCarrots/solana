@@ -253,6 +253,7 @@ default_arg --ledger "$ledger_dir"
 default_arg --log -
 default_arg --full-rpc-api
 default_arg --no-incremental-snapshots
+default_arg --tpu-use-quic
 
 if [[ $maybeRequireTower = true ]]; then
   default_arg --require-tower
