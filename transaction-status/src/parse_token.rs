@@ -8,7 +8,7 @@ use {
         instruction::{AccountMeta, CompiledInstruction, Instruction},
         message::AccountKeys,
     },
-    spl_token::{
+    spl_token_2022::{
         instruction::{AuthorityType, TokenInstruction},
         solana_program::{
             instruction::Instruction as SplTokenInstruction, program_option::COption,
@@ -163,7 +163,7 @@ pub fn parse_token(
         } => {
             check_num_token_accounts(&instruction.accounts, 2)?;
             let owned = match authority_type {
-                AuthorityType::MintTokens | AuthorityType::FreezeAccount => "mint",
+                AuthorityType::MintTokens | AuthorityType::FreezeAccount | AuthorityType::TransferFeeConfig | AuthorityType::WithheldWithdraw => "mint",
                 AuthorityType::AccountOwner | AuthorityType::CloseAccount => "account",
             };
             let mut value = json!({
@@ -385,6 +385,99 @@ pub fn parse_token(
                 }),
             })
         }
+        TokenInstruction::InitializeAccount3 { owner } => {
+            check_num_token_accounts(&instruction.accounts, 2)?;
+            Ok(ParsedInstructionEnum {
+                instruction_type: "initializeAccount3".to_string(),
+                info: json!({
+                    "account": account_keys[instruction.accounts[0] as usize].to_string(),
+                    "mint": account_keys[instruction.accounts[1] as usize].to_string(),
+                    "owner": owner.to_string(),
+                }),
+            })
+        }
+        TokenInstruction::InitializeMultisig2 { m } => {
+            check_num_token_accounts(&instruction.accounts, 2)?;
+            let mut signers: Vec<String> = vec![];
+            for i in instruction.accounts[2..].iter() {
+                signers.push(account_keys[*i as usize].to_string());
+            }
+            Ok(ParsedInstructionEnum {
+                instruction_type: "initializeMultisig".to_string(),
+                info: json!({
+                    "multisig": account_keys[instruction.accounts[0] as usize].to_string(),
+                    "signers": signers,
+                    "m": m,
+                }),
+            })
+        }
+        TokenInstruction::InitializeMint2 {
+            decimals,
+            mint_authority,
+            freeze_authority,
+        } => {
+            check_num_token_accounts(&instruction.accounts, 1)?;
+            let mut value = json!({
+                "mint": account_keys[instruction.accounts[0] as usize].to_string(),
+                "decimals": decimals,
+                "mintAuthority": mint_authority.to_string(),
+            });
+            let map = value.as_object_mut().unwrap();
+            if let COption::Some(freeze_authority) = freeze_authority {
+                map.insert(
+                    "freezeAuthority".to_string(),
+                    json!(freeze_authority.to_string()),
+                );
+            }
+            Ok(ParsedInstructionEnum {
+                instruction_type: "initializeMint".to_string(),
+                info: value,
+            })
+        }
+        TokenInstruction::GetAccountDataSize {
+            extension_types: _extension_types,
+        } => {
+            check_num_token_accounts(&instruction.accounts, 1)?;
+            Ok(ParsedInstructionEnum {
+                instruction_type: "getAccountDataSize".to_string(),
+                info: json!({
+                    "mint": account_keys[instruction.accounts[0] as usize].to_string(),
+                    // TODO: support rendering extention types
+                }),
+            })
+        }
+        TokenInstruction::InitializeImmutableOwner => {
+            check_num_token_accounts(&instruction.accounts, 1)?;
+            Ok(ParsedInstructionEnum {
+                instruction_type: "initializeImmutableOwner".to_string(),
+                info: json!({
+                    "account": account_keys[instruction.accounts[0] as usize].to_string(),
+                }),
+            })
+        }
+        TokenInstruction::InitializeMintCloseAuthority {
+            ..
+        } => {
+            Err(ParseInstructionError::InstructionNotParsable(ParsableProgram::SplToken))
+        }
+        TokenInstruction::TransferFeeExtension(_) => {
+            Err(ParseInstructionError::InstructionNotParsable(ParsableProgram::SplToken))
+        }
+        TokenInstruction::ConfidentialTransferExtension => {
+            Err(ParseInstructionError::InstructionNotParsable(ParsableProgram::SplToken))
+        }
+        TokenInstruction::DefaultAccountStateExtension => {
+            Err(ParseInstructionError::InstructionNotParsable(ParsableProgram::SplToken))
+        }
+        TokenInstruction::Reallocate { .. } => {
+            Err(ParseInstructionError::InstructionNotParsable(ParsableProgram::SplToken))
+        }
+        TokenInstruction::MemoTransferExtension => {
+            Err(ParseInstructionError::InstructionNotParsable(ParsableProgram::SplToken))
+        }
+        TokenInstruction::CreateNativeMint => {
+            Err(ParseInstructionError::InstructionNotParsable(ParsableProgram::SplToken))
+        }
     }
 }
 
@@ -395,6 +488,8 @@ pub enum UiAuthorityType {
     FreezeAccount,
     AccountOwner,
     CloseAccount,
+    TransferFeeConfig,
+    WithheldWithdraw,
 }
 
 impl From<AuthorityType> for UiAuthorityType {
@@ -404,6 +499,8 @@ impl From<AuthorityType> for UiAuthorityType {
             AuthorityType::FreezeAccount => UiAuthorityType::FreezeAccount,
             AuthorityType::AccountOwner => UiAuthorityType::AccountOwner,
             AuthorityType::CloseAccount => UiAuthorityType::CloseAccount,
+            AuthorityType::TransferFeeConfig => UiAuthorityType::TransferFeeConfig,
+            AuthorityType::WithheldWithdraw => UiAuthorityType::WithheldWithdraw,
         }
     }
 }
@@ -459,7 +556,7 @@ mod test {
     use {
         super::*,
         solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey},
-        spl_token::{
+        spl_token_2022::{
             instruction::*,
             solana_program::{
                 instruction::CompiledInstruction as SplTokenCompiledInstruction, message::Message,
@@ -491,17 +588,16 @@ mod test {
             .collect()
     }
 
-    #[test]
-    #[allow(clippy::same_item_push)]
-    fn test_parse_token() {
+    fn test_parse_token(program_id: &SplTokenPubkey) {
         let mint_pubkey = Pubkey::new_unique();
         let mint_authority = Pubkey::new_unique();
         let freeze_authority = Pubkey::new_unique();
         let rent_sysvar = solana_sdk::sysvar::rent::id();
 
         // Test InitializeMint variations
+        println!("{:?}", program_id);
         let initialize_mint_ix = initialize_mint(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(mint_authority),
             Some(&convert_pubkey(freeze_authority)),
@@ -529,7 +625,7 @@ mod test {
         );
 
         let initialize_mint_ix = initialize_mint(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(mint_authority),
             None,
@@ -559,7 +655,7 @@ mod test {
         let account_pubkey = Pubkey::new_unique();
         let owner = Pubkey::new_unique();
         let initialize_account_ix = initialize_account(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(owner),
@@ -590,7 +686,7 @@ mod test {
         let multisig_signer1 = Pubkey::new_unique();
         let multisig_signer2 = Pubkey::new_unique();
         let initialize_multisig_ix = initialize_multisig(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(multisig_pubkey),
             &[
                 &convert_pubkey(multisig_signer0),
@@ -626,7 +722,7 @@ mod test {
         // Test Transfer, incl multisig
         let recipient = Pubkey::new_unique();
         let transfer_ix = transfer(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(recipient),
             &convert_pubkey(owner),
@@ -654,7 +750,7 @@ mod test {
         );
 
         let transfer_ix = transfer(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(recipient),
             &convert_pubkey(multisig_pubkey),
@@ -690,7 +786,7 @@ mod test {
 
         // Test Approve, incl multisig
         let approve_ix = approve(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(recipient),
             &convert_pubkey(owner),
@@ -718,7 +814,7 @@ mod test {
         );
 
         let approve_ix = approve(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(recipient),
             &convert_pubkey(multisig_pubkey),
@@ -754,7 +850,7 @@ mod test {
 
         // Test Revoke
         let revoke_ix = revoke(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(owner),
             &[],
@@ -780,7 +876,7 @@ mod test {
         // Test SetOwner
         let new_freeze_authority = Pubkey::new_unique();
         let set_authority_ix = set_authority(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(mint_pubkey),
             Some(&convert_pubkey(new_freeze_authority)),
             AuthorityType::FreezeAccount,
@@ -808,7 +904,7 @@ mod test {
         );
 
         let set_authority_ix = set_authority(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             None,
             AuthorityType::CloseAccount,
@@ -838,7 +934,7 @@ mod test {
 
         // Test MintTo
         let mint_to_ix = mint_to(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_authority),
@@ -867,7 +963,7 @@ mod test {
 
         // Test Burn
         let burn_ix = burn(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(owner),
@@ -896,7 +992,7 @@ mod test {
 
         // Test CloseAccount
         let close_account_ix = close_account(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(recipient),
             &convert_pubkey(owner),
@@ -923,7 +1019,7 @@ mod test {
 
         // Test FreezeAccount
         let freeze_account_ix = freeze_account(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(freeze_authority),
@@ -950,7 +1046,7 @@ mod test {
 
         // Test ThawAccount
         let thaw_account_ix = thaw_account(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(freeze_authority),
@@ -977,7 +1073,7 @@ mod test {
 
         // Test TransferChecked, incl multisig
         let transfer_ix = transfer_checked(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(recipient),
@@ -1013,7 +1109,7 @@ mod test {
         );
 
         let transfer_ix = transfer_checked(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(recipient),
@@ -1057,7 +1153,7 @@ mod test {
 
         // Test ApproveChecked, incl multisig
         let approve_ix = approve_checked(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(recipient),
@@ -1093,7 +1189,7 @@ mod test {
         );
 
         let approve_ix = approve_checked(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(recipient),
@@ -1137,7 +1233,7 @@ mod test {
 
         // Test MintToChecked
         let mint_to_ix = mint_to_checked(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_authority),
@@ -1172,7 +1268,7 @@ mod test {
 
         // Test BurnChecked
         let burn_ix = burn_checked(
-            &spl_token::id(),
+            &program_id,
             &convert_pubkey(account_pubkey),
             &convert_pubkey(mint_pubkey),
             &convert_pubkey(owner),
@@ -1207,7 +1303,7 @@ mod test {
 
         // Test SyncNative
         let sync_native_ix =
-            sync_native(&spl_token::id(), &convert_pubkey(account_pubkey)).unwrap();
+            sync_native(&program_id, &convert_pubkey(account_pubkey)).unwrap();
         let message = Message::new(&[sync_native_ix], None);
         let compiled_instruction = convert_compiled_instruction(&message.instructions[0]);
         assert_eq!(
@@ -1223,6 +1319,18 @@ mod test {
                 })
             }
         );
+    }
+
+    #[test]
+    #[allow(clippy::same_item_push)]
+    fn test_parse_token_v3() {
+        test_parse_token(&spl_token::id());
+    }
+
+    #[test]
+    #[allow(clippy::same_item_push)]
+    fn test_parse_token_2022() {
+        test_parse_token(&spl_token_2022::id());
     }
 
     #[test]
