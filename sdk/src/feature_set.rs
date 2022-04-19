@@ -432,12 +432,12 @@ impl Default for FeatureSet {
 }
 impl FeatureSet {
     pub fn is_active(&self, feature_id: &Pubkey) -> bool {
-        warn!("is_active {:?}", feature_id);
+        log::warn!("is_active {:?}", feature_id);
         self.active.contains_key(feature_id)
     }
 
     pub fn activated_slot(&self, feature_id: &Pubkey) -> Option<Slot> {
-        warn!("activated_slot {:?}", feature_id);
+        log::warn!("activated_slot {:?}", feature_id);
         self.active.get(feature_id).copied()
     }
 
