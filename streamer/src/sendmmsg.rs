@@ -4,9 +4,11 @@
 use {
     itertools::izip,
     libc::{iovec, mmsghdr, sockaddr_in, sockaddr_in6, sockaddr_storage},
-    nix::sys::socket::InetAddr,
     std::os::unix::io::AsRawFd,
 };
+#[cfg(target_os = "linux")]
+#[allow(deprecated)]
+use nix::sys::socket::InetAddr;
 use {
     solana_sdk::transport::TransportError,
     std::{
@@ -74,6 +76,7 @@ fn mmsghdr_for_packet(
     hdr.msg_hdr.msg_iovlen = 1;
     hdr.msg_hdr.msg_name = addr as *mut _ as *mut _;
 
+    #[allow(deprecated)]
     match InetAddr::from_std(dest) {
         InetAddr::V4(dest) => {
             unsafe {
