@@ -18,6 +18,7 @@ use {
 #[derive(Clone)]
 pub struct ConfirmedBlockUploadConfig {
     pub force_reupload: bool,
+    pub max_num_slots_to_check: usize,
     pub num_blocks_to_upload_in_parallel: usize,
     pub block_read_ahead_depth: usize, // must always be greater than `num_blocks_to_upload_in_parallel`
 }
@@ -27,6 +28,7 @@ impl Default for ConfirmedBlockUploadConfig {
         const NUM_BLOCKS_TO_UPLOAD_IN_PARALLEL: usize = 32;
         ConfirmedBlockUploadConfig {
             force_reupload: false,
+            max_num_slots_to_check: 200,
             num_blocks_to_upload_in_parallel: NUM_BLOCKS_TO_UPLOAD_IN_PARALLEL,
             block_read_ahead_depth: NUM_BLOCKS_TO_UPLOAD_IN_PARALLEL * 2,
         }
