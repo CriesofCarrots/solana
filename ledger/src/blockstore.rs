@@ -1930,6 +1930,13 @@ impl Blockstore {
 
     /// The first complete block that is available in the Blockstore ledger
     pub fn get_first_available_block(&self) -> Result<Slot> {
+        warn!("{:?}", self.lowest_slot());
+        let mut root_iterator = self.rooted_slot_iterator(0)?;
+        warn!("{:?}", root_iterator.next());
+        warn!("{:?}", root_iterator.next());
+        let mut slot_meta_iterator = self.slot_meta_iterator(0)?;
+        warn!("{:?}", slot_meta_iterator.next());
+        warn!("{:?}", slot_meta_iterator.next());
         let mut root_iterator = self.rooted_slot_iterator(self.lowest_slot())?;
         // The block at root-index 0 cannot be complete, because it is missing its parent
         // blockhash. A parent blockhash must be calculated from the entries of the previous block.
