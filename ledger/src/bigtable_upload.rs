@@ -29,7 +29,7 @@ impl Default for ConfirmedBlockUploadConfig {
         const NUM_BLOCKS_TO_UPLOAD_IN_PARALLEL: usize = 32;
         ConfirmedBlockUploadConfig {
             force_reupload: false,
-            max_num_slots_to_check: 200,
+            max_num_slots_to_check: NUM_BLOCKS_TO_UPLOAD_IN_PARALLEL * 2,
             num_blocks_to_upload_in_parallel: NUM_BLOCKS_TO_UPLOAD_IN_PARALLEL,
             block_read_ahead_depth: NUM_BLOCKS_TO_UPLOAD_IN_PARALLEL * 2,
         }
