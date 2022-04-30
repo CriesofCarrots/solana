@@ -789,21 +789,41 @@ impl LedgerStorage {
             })
             .collect();
 
+        let mut tasks = vec![];
+
         if !tx_cells.is_empty() {
-            bytes_written += self
-                .connection
-                .put_bincode_cells_with_retry::<TransactionInfo>("tx", &tx_cells)
-                .await?;
+            let conn = self.connection.clone();
+            tasks.push(tokio::spawn(async move {
+                conn.put_bincode_cells_with_retry::<TransactionInfo>("tx", &tx_cells)
+                    .await
+            }));
         }
 
         if !tx_by_addr_cells.is_empty() {
-            bytes_written += self
-                .connection
-                .put_protobuf_cells_with_retry::<tx_by_addr::TransactionByAddr>(
+            let conn = self.connection.clone();
+            tasks.push(tokio::spawn(async move {
+                conn.put_protobuf_cells_with_retry::<tx_by_addr::TransactionByAddr>(
                     "tx-by-addr",
                     &tx_by_addr_cells,
                 )
-                .await?;
+                .await
+            }));
+        }
+
+        let results = futures::future::join_all(tasks).await;
+        let results: Vec<_> = results.into_iter().map(|r| r.unwrap()).collect();
+
+        bytes_written += results
+            .iter()
+            .filter_map(|r| match r {
+                Ok(bytes) => Some(bytes),
+                Err(_) => None,
+            })
+            .sum::<usize>();
+
+        let maybe_first_err = results.into_iter().find(|r| r.is_err());
+        if let Some(Err(e)) = maybe_first_err {
+            return Err(Error::BigTableError(e));
         }
 
         let num_transactions = confirmed_block.transactions.len();
