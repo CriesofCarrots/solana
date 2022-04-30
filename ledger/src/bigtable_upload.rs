@@ -208,13 +208,23 @@ pub async fn upload_confirmed_blocks(
                 num_blocks -= 1;
                 None
             }
-            Some(confirmed_block) => Some(bigtable.upload_confirmed_block(slot, confirmed_block)),
+            Some(confirmed_block) => {
+                let bt = bigtable.clone();
+                Some(tokio::spawn(async move {
+                    bt.upload_confirmed_block(slot, confirmed_block).await
+                }))
+            }
         });
 
         for result in futures::future::join_all(uploads).await {
-            if result.is_err() {
-                error!("upload_confirmed_block() failed: {:?}", result.err());
+            if let Err(err) = result {
+                error!("upload_confirmed_block() failed: {:?}", err);
                 failures += 1;
+            } else {
+                if let Err(err) = result.unwrap() {
+                    error!("upload_confirmed_block() failed: {:?}", err);
+                    failures += 1;
+                }
             }
         }
 
