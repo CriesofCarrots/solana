@@ -74,16 +74,20 @@ impl TransactionStatusService {
                 balances,
                 token_balances,
                 rent_debits,
+                first_transaction_index,
             }) => {
                 let slot = bank.slot();
                 for (
-                    transaction,
-                    execution_result,
-                    pre_balances,
-                    post_balances,
-                    pre_token_balances,
-                    post_token_balances,
-                    rent_debits,
+                    i,
+                    (
+                        transaction,
+                        execution_result,
+                        pre_balances,
+                        post_balances,
+                        pre_token_balances,
+                        post_token_balances,
+                        rent_debits,
+                    ),
                 ) in izip!(
                     transactions,
                     execution_results,
@@ -92,8 +96,11 @@ impl TransactionStatusService {
                     token_balances.pre_token_balances,
                     token_balances.post_token_balances,
                     rent_debits,
-                ) {
+                )
+                .enumerate()
+                {
                     if let Some(details) = execution_result {
+                        let _slot_index = first_transaction_index.saturating_add(i);
                         let TransactionExecutionDetails {
                             status,
                             log_messages,
@@ -384,6 +391,7 @@ pub(crate) mod tests {
             balances,
             token_balances,
             rent_debits: vec![rent_debits],
+            first_transaction_index: 0,
         };
 
         let test_notifier = Arc::new(RwLock::new(TestTransactionNotifier::new()));
