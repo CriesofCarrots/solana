@@ -1194,7 +1194,7 @@ fn main() {
             // let iter = RootedSlotIterator::new_from_start(&blockstore).expect("Failed to get rooted slot");
 
             let slot_hash: Vec<_> = iter
-                .filter_map(|(slot, _meta)| {
+                .filter_map(|((slot, _bool), _meta)| {
                     if slot <= max_height as u64 {
                         let blockhash = blockstore
                             .get_slot_entries(slot, 0)
