@@ -1190,7 +1190,8 @@ fn main() {
                 usize::from_str(DEFAULT_ROOT_COUNT).unwrap()
             };
 
-            let iter = RootedSlotIterator::new(0, &blockstore).expect("Failed to get rooted slot");
+            let iter = blockstore.rooted_slot_iterator(0).unwrap();
+            // let iter = RootedSlotIterator::new_from_start(&blockstore).expect("Failed to get rooted slot");
 
             let slot_hash: Vec<_> = iter
                 .filter_map(|(slot, _meta)| {
