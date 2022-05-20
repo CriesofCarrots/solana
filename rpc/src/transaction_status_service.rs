@@ -100,7 +100,7 @@ impl TransactionStatusService {
                 .enumerate()
                 {
                     if let Some(details) = execution_result {
-                        let _slot_index = first_transaction_index.saturating_add(i);
+                        let transaction_index = first_transaction_index.saturating_add(i);
                         let TransactionExecutionDetails {
                             status,
                             log_messages,
@@ -167,6 +167,7 @@ impl TransactionStatusService {
                         if let Some(transaction_notifier) = transaction_notifier.as_ref() {
                             transaction_notifier.write().unwrap().notify_transaction(
                                 slot,
+                                transaction_index,
                                 transaction.signature(),
                                 &transaction_status_meta,
                                 &transaction,
@@ -265,6 +266,7 @@ pub(crate) mod tests {
         fn notify_transaction(
             &self,
             slot: Slot,
+            transaction_slot_index: usize,
             signature: &Signature,
             transaction_status_meta: &TransactionStatusMeta,
             transaction: &SanitizedTransaction,
