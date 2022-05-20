@@ -1196,13 +1196,13 @@ fn main() {
             let slot_hash: Vec<_> = iter
                 .filter_map(|slot| {
                     if slot <= max_height as u64 {
-                        let blockhash = blockstore
-                            .get_slot_entries(slot, 0)
-                            .unwrap()
-                            .last()
-                            .unwrap()
-                            .hash;
-                        Some((slot, blockhash))
+                        // let blockhash = blockstore
+                        //     .get_slot_entries(slot, 0)
+                        //     .unwrap()
+                        //     .last()
+                        //     .unwrap()
+                        //     .hash;
+                        Some(slot)
                     } else {
                         None
                     }
@@ -1223,10 +1223,10 @@ fn main() {
                 .into_iter()
                 .rev()
                 .enumerate()
-                .for_each(|(i, (slot, hash))| {
+                .for_each(|(i, slot)| {
                     if i < num_roots {
                         output_file
-                            .write_all(format!("{:?}: {:?}\n", slot, hash).as_bytes())
+                            .write_all(format!("{:?}\n", slot).as_bytes())
                             .expect("failed to write");
                     }
                 });
