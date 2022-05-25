@@ -1222,6 +1222,7 @@ impl Blockstore {
         let mut newly_completed_data_sets: Vec<CompletedDataSetInfo> = vec![];
         let mut inserted_indices = Vec::new();
         for (i, (shred, is_repaired)) in shreds.into_iter().zip(is_repaired).enumerate() {
+            warn!("in insert_shreds_handle_duplicate");
             let shred_source = if is_repaired {
                 ShredSource::Repaired
             } else {
@@ -1481,6 +1482,9 @@ impl Blockstore {
     {
         let slot = shred.slot();
         let shred_index = u64::from(shred.index());
+        if slot == 0 {
+            panic!("check_insert_coding_shred");
+        }
 
         let index_meta_working_set_entry =
             get_index_meta_entry(&self.db, slot, index_working_set, index_meta_time);
