@@ -638,6 +638,13 @@ impl Blockstore {
             column_options,
             slots_stats: SlotsStats::default(),
         };
+
+        warn!("Inside do_open");
+        let slot_meta = blockstore.slot_meta_iterator(0).unwrap().next();
+        if let Some((slot, meta)) = slot_meta {
+            warn!("do_open slot-meta {:?}, {:?}", slot, meta);
+        }
+
         if initialize_transaction_status_index {
             blockstore.initialize_transaction_status_index()?;
         }
@@ -649,6 +656,11 @@ impl Blockstore {
         options: BlockstoreOptions,
     ) -> Result<BlockstoreSignals> {
         let blockstore = Self::open_with_options(ledger_path, options)?;
+        warn!("After open_with_options");
+        let slot_meta = blockstore.slot_meta_iterator(0).unwrap().next();
+        if let Some((slot, meta)) = slot_meta {
+            warn!("open_with_options slot-meta {:?}, {:?}", slot, meta);
+        }
         let (ledger_signal_sender, ledger_signal_receiver) = bounded(1);
         let (completed_slots_sender, completed_slots_receiver) =
             bounded(MAX_COMPLETED_SLOTS_IN_CHANNEL);
