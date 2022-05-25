@@ -581,6 +581,15 @@ impl Blockstore {
 
         let db = Arc::new(db);
 
+        warn!("Earlier inside do_open");
+        let slot_meta = db
+            .iter::<cf::SlotMeta>(IteratorMode::From(0, IteratorDirection::Forward))
+            .unwrap()
+            .next();
+        if let Some((slot, meta)) = slot_meta {
+            warn!("do_open0 slot-meta {:?}, {:?}", slot, meta);
+        }
+
         // Get max root or 0 if it doesn't exist
         let max_root = db
             .iter::<cf::Root>(IteratorMode::End)?
