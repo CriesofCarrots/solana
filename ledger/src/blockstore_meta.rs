@@ -215,6 +215,9 @@ impl SlotMeta {
     }
 
     pub(crate) fn new(slot: Slot, parent_slot: Option<Slot>) -> Self {
+        if slot == 0 {
+            panic!("SlotMeta::new()");
+        }
         SlotMeta {
             slot,
             parent_slot,
