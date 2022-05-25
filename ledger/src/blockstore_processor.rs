@@ -678,6 +678,16 @@ pub fn process_blockstore_from_root(
         blockstore
             .set_roots(std::iter::once(&start_slot))
             .expect("Couldn't set root slot on startup");
+        warn!("get_first_available_block {:?}", blockstore.get_first_available_block());
+        warn!("lowest_slot_with_genesis {:?}", blockstore.lowest_slot_with_genesis());
+        warn!("lowest_cleanup_slot {:?}", blockstore.lowest_cleanup_slot());
+        warn!("lowest_slot {:?}", blockstore.lowest_slot());
+        let iterator = blockstore.db()
+            .iter::<cf::Root>(IteratorMode::Start)
+            .unwrap();
+        while let Some(root) = iterator.next() {
+            warn!("CF root {:?}", root);
+        }
     } else {
         assert!(
             blockstore.is_root(start_slot),
