@@ -694,7 +694,7 @@ pub fn process_blockstore_from_root(
         }
         let mut iterator = blockstore.slot_meta_iterator(0).unwrap();
         while let Some((slot, meta)) = &iterator.next() {
-            warn!("CF slot-meta {:?}, {:?} len", slot, meta.received);
+            warn!("CF slot-meta {:?}, {:?}", slot, meta);
         }
     } else {
         assert!(
