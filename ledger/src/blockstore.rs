@@ -539,6 +539,7 @@ impl Blockstore {
     }
 
     fn do_open(ledger_path: &Path, options: BlockstoreOptions) -> Result<Blockstore> {
+        panic!("do_open");
         fs::create_dir_all(&ledger_path)?;
         let blockstore_path = ledger_path.join(Self::blockstore_directory(
             &options.column_options.shred_storage_type,
