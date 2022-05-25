@@ -1333,11 +1333,6 @@ fn load_blockstore(
     blockstore.set_no_compaction(config.no_rocksdb_compaction);
 
     let blockstore = Arc::new(blockstore);
-    warn!("Blockstore::open_with_signal");
-    let mut iterator = blockstore.slot_meta_iterator(0).unwrap();
-    while let Some((slot, meta)) = &iterator.next() {
-        warn!("Blockstore just opened slot-meta {:?}, {:?}", slot, meta);
-    }
     let blockstore_root_scan = BlockstoreRootScan::new(config, &blockstore, exit);
 
     let process_options = blockstore_processor::ProcessOptions {
