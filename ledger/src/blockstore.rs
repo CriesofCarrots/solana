@@ -4171,6 +4171,7 @@ pub fn create_new_ledger(
     max_genesis_archive_unpacked_size: u64,
     column_options: LedgerColumnOptions,
 ) -> Result<Hash> {
+    panic!("create_new_ledger");
     Blockstore::destroy(ledger_path)?;
     genesis_config.write(ledger_path)?;
     panic!("create_new_ledger");
