@@ -516,6 +516,12 @@ impl Validator {
             transaction_notifier,
         );
 
+        warn!("After load_blockstore");
+        let mut iterator = blockstore.slot_meta_iterator(0).unwrap();
+        while let Some((slot, meta)) = &iterator.next() {
+            warn!("Blockstore just opened slot-meta {:?}, {:?}", slot, meta);
+        }
+
         let last_full_snapshot_slot = process_blockstore(
             &blockstore,
             &mut bank_forks,
@@ -528,6 +534,12 @@ impl Validator {
             blockstore_root_scan,
             pruned_banks_receiver.clone(),
         );
+
+        warn!("After process_blockstore");
+        let mut iterator = blockstore.slot_meta_iterator(0).unwrap();
+        while let Some((slot, meta)) = &iterator.next() {
+            warn!("Blockstore just opened slot-meta {:?}, {:?}", slot, meta);
+        }
         let last_full_snapshot_slot =
             last_full_snapshot_slot.or_else(|| starting_snapshot_hashes.map(|x| x.full.hash.0));
 
@@ -1321,6 +1333,11 @@ fn load_blockstore(
     blockstore.set_no_compaction(config.no_rocksdb_compaction);
 
     let blockstore = Arc::new(blockstore);
+    warn!("Blockstore::open_with_signal");
+    let mut iterator = blockstore.slot_meta_iterator(0).unwrap();
+    while let Some((slot, meta)) = &iterator.next() {
+        warn!("Blockstore just opened slot-meta {:?}, {:?}", slot, meta);
+    }
     let blockstore_root_scan = BlockstoreRootScan::new(config, &blockstore, exit);
 
     let process_options = blockstore_processor::ProcessOptions {
