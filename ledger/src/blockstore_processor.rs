@@ -692,6 +692,10 @@ pub fn process_blockstore_from_root(
         while let Some(root) = &iterator.next() {
             warn!("CF root {:?}", root);
         }
+        let mut iterator = blockstore.slot_meta_iterator(0).unwrap();
+        while let Some((slot, meta)) = &iterator.next() {
+            warn!("CF slot-meta {:?}, {:?} len", slot, meta.received);
+        }
     } else {
         assert!(
             blockstore.is_root(start_slot),
