@@ -539,10 +539,13 @@ impl Blockstore {
     }
 
     fn do_open(ledger_path: &Path, options: BlockstoreOptions) -> Result<Blockstore> {
+        warn!("before Blockstore do_open: ledger_path {:?}", ledger_path.exists());
         fs::create_dir_all(&ledger_path)?;
+        warn!("after Blockstore do_open: ledger_path {:?}", ledger_path.exists());
         let blockstore_path = ledger_path.join(Self::blockstore_directory(
             &options.column_options.shred_storage_type,
         ));
+        warn!("after Blockstore do_open: blockstore_path {:?}", blockstore_path.exists());
         let column_options = options.column_options.clone();
 
         adjust_ulimit_nofile(options.enforce_ulimit_nofile)?;
