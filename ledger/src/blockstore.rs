@@ -3510,7 +3510,7 @@ impl Blockstore {
         self.last_root()
     }
 
-    fn lowest_slot_with_genesis(&self) -> Slot {
+    pub fn lowest_slot_with_genesis(&self) -> Slot {
         for (slot, meta) in self
             .slot_meta_iterator(0)
             .expect("unable to iterate over meta")
