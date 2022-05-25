@@ -4133,6 +4133,7 @@ pub fn create_new_ledger(
 ) -> Result<Hash> {
     Blockstore::destroy(ledger_path)?;
     genesis_config.write(ledger_path)?;
+    panic!("create_new_ledger");
 
     // Fill slot 0 with ticks that link back to the genesis_config to bootstrap the ledger.
     let blockstore_dir = Blockstore::blockstore_directory(&column_options.shred_storage_type);
