@@ -1891,6 +1891,9 @@ impl Blockstore {
         let last_root = *last_root.read().unwrap();
         // TODO Shouldn't this use shred.parent() instead and update
         // slot_meta.parent_slot accordingly?
+        if slot == 0 {
+            panic!("slot == 0");
+        }
         slot_meta
             .parent_slot
             .map(|parent_slot| verify_shred_slots(slot, parent_slot, last_root))
