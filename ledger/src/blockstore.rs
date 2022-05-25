@@ -1222,7 +1222,7 @@ impl Blockstore {
         let mut newly_completed_data_sets: Vec<CompletedDataSetInfo> = vec![];
         let mut inserted_indices = Vec::new();
         for (i, (shred, is_repaired)) in shreds.into_iter().zip(is_repaired).enumerate() {
-            warn!("in insert_shreds_handle_duplicate");
+            panic!("in insert_shreds_handle_duplicate");
             let shred_source = if is_repaired {
                 ShredSource::Repaired
             } else {
