@@ -1333,7 +1333,17 @@ fn load_blockstore(
     blockstore.set_no_compaction(config.no_rocksdb_compaction);
 
     let blockstore = Arc::new(blockstore);
+    warn!("After Blockstore::open_with_signal");
+    let slot_meta = blockstore.slot_meta_iterator(0).unwrap().next();
+    if let Some((slot, meta)) = slot_meta {
+        warn!("Blockstore::open_with_signal slot-meta {:?}, {:?}", slot, meta);
+    }
     let blockstore_root_scan = BlockstoreRootScan::new(config, &blockstore, exit);
+    warn!("After BlockstoreRootScan");
+    let slot_meta = blockstore.slot_meta_iterator(0).unwrap().next();
+    if let Some((slot, meta)) = slot_meta {
+        warn!("BlockstoreRootScan slot-meta {:?}, {:?}", slot, meta);
+    }
 
     let process_options = blockstore_processor::ProcessOptions {
         bpf_jit: config.bpf_jit,
@@ -1383,6 +1393,11 @@ fn load_blockstore(
             .as_ref(),
         accounts_update_notifier,
     );
+    warn!("After load_bank_forks");
+    let slot_meta = blockstore.slot_meta_iterator(0).unwrap().next();
+    if let Some((slot, meta)) = slot_meta {
+        warn!("load_bank_forks slot-meta {:?}, {:?}", slot, meta);
+    }
 
     leader_schedule_cache.set_fixed_leader_schedule(config.fixed_leader_schedule.clone());
     bank_forks.set_snapshot_config(config.snapshot_config.clone());
