@@ -552,6 +552,15 @@ impl Blockstore {
         info!("Opening database at {:?}", blockstore_path);
         let db = Database::open(&blockstore_path, options)?;
 
+        warn!("After Database::open");
+        let slot_meta = db
+            .iter::<cf::SlotMeta>(IteratorMode::From(0, IteratorDirection::Forward))
+            .unwrap()
+            .next();
+        if let Some((slot, meta)) = slot_meta {
+            warn!("Database::open slot-meta {:?}, {:?}", slot, meta);
+        }
+
         // Create the metadata column family
         let meta_cf = db.column();
 
