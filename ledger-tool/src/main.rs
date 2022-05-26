@@ -147,24 +147,25 @@ fn output_entry(
             for (transactions_index, transaction) in entry.transactions.into_iter().enumerate() {
                 println!("    Transaction {}", transactions_index);
                 let tx_signature = transaction.signatures[0];
-                let tx_status_meta = blockstore
-                    .read_transaction_status((tx_signature, slot))
-                    .unwrap_or_else(|err| {
-                        eprintln!(
-                            "Failed to read transaction status for {} at slot {}: {}",
-                            transaction.signatures[0], slot, err
-                        );
-                        None
-                    })
-                    .map(|meta| meta.into());
-
-                solana_cli_output::display::println_transaction(
-                    &transaction,
-                    tx_status_meta.as_ref(),
-                    "      ",
-                    None,
-                    None,
-                );
+                println!(      "Signature 0: {}", tx_signature);
+                // let tx_status_meta = blockstore
+                //     .read_transaction_status((tx_signature, slot))
+                //     .unwrap_or_else(|err| {
+                //         eprintln!(
+                //             "Failed to read transaction status for {} at slot {}: {}",
+                //             transaction.signatures[0], slot, err
+                //         );
+                //         None
+                //     })
+                //     .map(|meta| meta.into());
+                //
+                // solana_cli_output::display::println_transaction(
+                //     &transaction,
+                //     tx_status_meta.as_ref(),
+                //     "      ",
+                //     None,
+                //     None,
+                // );
             }
         }
         LedgerOutputMethod::Json => {
