@@ -7,7 +7,7 @@ use {
     crossbeam_channel::{unbounded, Sender},
     itertools::Itertools,
     log::*,
-    rand::{seq::SliceRandom, thread_rng},
+    rand::{Rng, thread_rng},
     rayon::{prelude::*, ThreadPool},
     solana_entry::entry::{
         self, create_ticks, Entry, EntrySlice, EntryType, EntryVerificationStatus, VerifyRecyclers,
@@ -453,11 +453,26 @@ pub fn process_entries_for_tests(
         None,
         &mut timings,
         Arc::new(RwLock::new(BlockCostCapacityMeter::default())),
-        entry_indexes,
+        &entry_indexes,
     );
 
     debug!("process_entries: {:?}", timings);
     result
+}
+
+fn get_random_indices(len: usize) -> Vec<usize> {
+    let mut rng = thread_rng();
+    (1..len)
+        .rev()
+        .map(|i| rng.gen_range(0, i + 1))
+        .collect()
+}
+
+fn shuffle_slice<T>(indices: &[usize], slice: &mut [T]) {
+    assert_eq!(slice.len(), indices.len() + 1);
+    for (i, &rnd_ind) in (1..slice.len()).rev().zip(indices.iter()) {
+        slice.swap(i, rnd_ind);
+    }
 }
 
 // Note: If randomize is true this will shuffle entries' transactions in-place.
@@ -472,14 +487,13 @@ fn process_entries_with_callback(
     transaction_cost_metrics_sender: Option<&TransactionCostMetricsSender>,
     timings: &mut ExecuteTimings,
     cost_capacity_meter: Arc<RwLock<BlockCostCapacityMeter>>,
-    entry_indexes: Vec<Vec<usize>>,
+    entry_indexes: &[Vec<usize>],
 ) -> Result<()> {
     // accumulator for entries that can be processed in parallel
     let mut batches = vec![];
     let mut tick_hashes = vec![];
-    let mut rng = thread_rng();
 
-    for entry in entries {
+    for (entry, mut transaction_indexes) in entries.iter_mut().zip(entry_indexes) {
         match entry {
             EntryType::Tick(hash) => {
                 // If it's a tick, save it for later
@@ -503,19 +517,21 @@ fn process_entries_with_callback(
                     tick_hashes.clear();
                 }
             }
-            EntryType::Transactions(transactions) => {
+            EntryType::Transactions(mut transactions) => {
                 if let Some(transaction_cost_metrics_sender) = transaction_cost_metrics_sender {
                     transaction_cost_metrics_sender
                         .send_cost_details(bank.clone(), transactions.iter());
                 }
 
                 if randomize {
-                    transactions.shuffle(&mut rng);
+                    let indices = get_random_indices(transactions.len());
+                    shuffle_slice(&indices, &mut transactions);
+                    shuffle_slice(&indices, &mut transaction_indexes);
                 }
 
                 loop {
                     // try to lock the accounts
-                    let batch = bank.prepare_sanitized_batch(transactions);
+                    let batch = bank.prepare_sanitized_batch(&transactions);
                     let first_lock_err = first_err(batch.lock_results());
 
                     // if locking worked
@@ -1058,7 +1074,7 @@ pub fn confirm_slot(
                 transaction_cost_metrics_sender,
                 &mut execute_timings,
                 cost_capacity_meter,
-                entry_indexes,
+                &entry_indexes,
             )
             .map_err(BlockstoreProcessorError::from);
             replay_elapsed.stop();
