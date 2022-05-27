@@ -969,10 +969,9 @@ pub fn confirm_slot(
             let next_starting_index = entry_starting_index.saturating_add(num_txs);
             entry_indexes.push((entry_starting_index..next_starting_index).collect::<Vec<_>>());
             entry_starting_index = next_starting_index;
+            num_txs
         })
         .sum::<usize>();
-    let transaction_indexes: Vec<_> =
-        (progress.num_txs..progress.num_txs.saturating_add(num_txs)).collect();
     warn!(
         "slot: {:?}, num_entries: {:?}, indexes: {:?}",
         slot, num_entries, entry_indexes
