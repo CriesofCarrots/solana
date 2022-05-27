@@ -423,6 +423,17 @@ pub fn process_entries_for_tests(
     transaction_status_sender: Option<&TransactionStatusSender>,
     replay_vote_sender: Option<&ReplayVoteSender>,
 ) -> Result<()> {
+    let mut entry_starting_index: usize = bank.transaction_count().try_into().unwrap();
+    let entry_indexes: Vec<_> = entries
+        .iter()
+        .map(|e| {
+            let num_txs = e.transactions.len();
+            let next_starting_index = entry_starting_index.saturating_add(num_txs);
+            let indexes = (entry_starting_index..next_starting_index).collect::<Vec<_>>();
+            entry_starting_index = next_starting_index;
+            indexes
+        })
+        .collect();
     let verify_transaction = {
         let bank = bank.clone();
         move |versioned_tx: VersionedTransaction| -> Result<SanitizedTransaction> {
@@ -442,7 +453,7 @@ pub fn process_entries_for_tests(
         None,
         &mut timings,
         Arc::new(RwLock::new(BlockCostCapacityMeter::default())),
-        bank.transaction_count().try_into().unwrap(),
+        entry_indexes,
     );
 
     debug!("process_entries: {:?}", timings);
@@ -461,13 +472,12 @@ fn process_entries_with_callback(
     transaction_cost_metrics_sender: Option<&TransactionCostMetricsSender>,
     timings: &mut ExecuteTimings,
     cost_capacity_meter: Arc<RwLock<BlockCostCapacityMeter>>,
-    num_previous_txs: usize,
+    entry_indexes: Vec<Vec<usize>>,
 ) -> Result<()> {
     // accumulator for entries that can be processed in parallel
     let mut batches = vec![];
     let mut tick_hashes = vec![];
     let mut rng = thread_rng();
-    let mut transaction_index = num_previous_txs;
 
     for entry in entries {
         match entry {
@@ -512,9 +522,8 @@ fn process_entries_with_callback(
                     if first_lock_err.is_ok() {
                         batches.push(TransactionBatchWithIndex {
                             batch,
-                            transaction_index,
+                            transaction_index: 0,
                         });
-                        transaction_index = transaction_index.saturating_add(transactions.len());
                         // done with this entry
                         break;
                     }
@@ -972,10 +981,6 @@ pub fn confirm_slot(
             num_txs
         })
         .sum::<usize>();
-    warn!(
-        "slot: {:?}, num_entries: {:?}, indexes: {:?}",
-        slot, num_entries, entry_indexes
-    );
     trace!(
         "Fetched entries for slot {}, num_entries: {}, num_shreds: {}, num_txs: {}, slot_full: {}",
         slot,
@@ -1053,7 +1058,7 @@ pub fn confirm_slot(
                 transaction_cost_metrics_sender,
                 &mut execute_timings,
                 cost_capacity_meter,
-                progress.num_txs,
+                entry_indexes,
             )
             .map_err(BlockstoreProcessorError::from);
             replay_elapsed.stop();
