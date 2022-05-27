@@ -961,6 +961,8 @@ pub fn confirm_slot(
 
     let num_entries = entries.len();
     let num_txs = entries.iter().map(|e| e.transactions.len()).sum::<usize>();
+    let transaction_indexes: Vec<_> = (progress.num_txs..progress.num_txs.saturating_add(num_txs)).collect();
+    warn!("slot: {:?}, indexes: {:?}", slot, transaction_indexes);
     trace!(
         "Fetched entries for slot {}, num_entries: {}, num_shreds: {}, num_txs: {}, slot_full: {}",
         slot,
