@@ -74,20 +74,18 @@ impl TransactionStatusService {
                 balances,
                 token_balances,
                 rent_debits,
-                first_transaction_index,
+                transaction_indexes,
             }) => {
                 let slot = bank.slot();
                 for (
-                    i,
-                    (
-                        transaction,
-                        execution_result,
-                        pre_balances,
-                        post_balances,
-                        pre_token_balances,
-                        post_token_balances,
-                        rent_debits,
-                    ),
+                    transaction,
+                    execution_result,
+                    pre_balances,
+                    post_balances,
+                    pre_token_balances,
+                    post_token_balances,
+                    rent_debits,
+                    transaction_index,
                 ) in izip!(
                     transactions,
                     execution_results,
@@ -96,11 +94,10 @@ impl TransactionStatusService {
                     token_balances.pre_token_balances,
                     token_balances.post_token_balances,
                     rent_debits,
+                    transaction_indexes,
                 )
-                .enumerate()
                 {
                     if let Some(details) = execution_result {
-                        let transaction_index = first_transaction_index.saturating_add(i);
                         let TransactionExecutionDetails {
                             status,
                             log_messages,

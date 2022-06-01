@@ -7,7 +7,7 @@ use {
     crossbeam_channel::{unbounded, Sender},
     itertools::Itertools,
     log::*,
-    rand::{seq::SliceRandom, thread_rng},
+    rand::{Rng, thread_rng},
     rayon::{prelude::*, ThreadPool},
     solana_entry::entry::{
         self, create_ticks, Entry, EntrySlice, EntryType, EntryVerificationStatus, VerifyRecyclers,
@@ -96,9 +96,9 @@ impl BlockCostCapacityMeter {
     }
 }
 
-struct TransactionBatchWithIndex<'a, 'b> {
+struct TransactionBatchWithIndexes<'a, 'b> {
     pub batch: TransactionBatch<'a, 'b>,
-    pub transaction_index: usize,
+    pub transaction_indexes: Vec<usize>,
 }
 
 thread_local!(static PAR_THREAD_POOL: RefCell<ThreadPool> = RefCell::new(rayon::ThreadPoolBuilder::new()
@@ -162,16 +162,16 @@ fn aggregate_total_execution_units(execute_timings: &ExecuteTimings) -> u64 {
 }
 
 fn execute_batch(
-    batch: &TransactionBatchWithIndex,
+    batch: &TransactionBatchWithIndexes,
     bank: &Arc<Bank>,
     transaction_status_sender: Option<&TransactionStatusSender>,
     replay_vote_sender: Option<&ReplayVoteSender>,
     timings: &mut ExecuteTimings,
     cost_capacity_meter: Arc<RwLock<BlockCostCapacityMeter>>,
 ) -> Result<()> {
-    let TransactionBatchWithIndex {
+    let TransactionBatchWithIndexes {
         batch,
-        transaction_index,
+        transaction_indexes,
     } = batch;
     let record_token_balances = transaction_status_sender.is_some();
 
@@ -255,7 +255,7 @@ fn execute_batch(
             balances,
             token_balances,
             rent_debits,
-            *transaction_index,
+            transaction_indexes.to_vec(),
         );
     }
 
@@ -265,7 +265,7 @@ fn execute_batch(
 
 fn execute_batches_internal(
     bank: &Arc<Bank>,
-    batches: &[TransactionBatchWithIndex],
+    batches: &[TransactionBatchWithIndexes],
     entry_callback: Option<&ProcessCallback>,
     transaction_status_sender: Option<&TransactionStatusSender>,
     replay_vote_sender: Option<&ReplayVoteSender>,
@@ -312,18 +312,24 @@ fn rebatch_transactions<'a>(
     sanitized_txs: &'a [SanitizedTransaction],
     start: usize,
     end: usize,
-) -> TransactionBatch<'a, 'a> {
+    transaction_indexes: &'a [usize],
+) -> TransactionBatchWithIndexes<'a, 'a> {
     let txs = &sanitized_txs[start..=end];
     let results = &lock_results[start..=end];
     let mut tx_batch = TransactionBatch::new(results.to_vec(), bank, Cow::from(txs));
     tx_batch.set_needs_unlock(false);
 
-    tx_batch
+    let transaction_indexes = transaction_indexes[start..=end].to_vec();
+
+    TransactionBatchWithIndexes {
+        batch: tx_batch,
+        transaction_indexes,
+    }
 }
 
 fn execute_batches(
     bank: &Arc<Bank>,
-    batches: &[TransactionBatchWithIndex],
+    batches: &[TransactionBatchWithIndexes],
     entry_callback: Option<&ProcessCallback>,
     transaction_status_sender: Option<&TransactionStatusSender>,
     replay_vote_sender: Option<&ReplayVoteSender>,
@@ -332,22 +338,20 @@ fn execute_batches(
 ) -> Result<()> {
     let lock_results = batches
         .iter()
-        .flat_map(|TransactionBatchWithIndex { batch, .. }| batch.lock_results().clone())
+        .flat_map(|TransactionBatchWithIndexes { batch, .. }| batch.lock_results().clone())
         .collect::<Vec<_>>();
-    let mut first_transaction_index: Option<&usize> = None;
     let sanitized_txs = batches
         .iter()
         .flat_map(
-            |TransactionBatchWithIndex {
+            |TransactionBatchWithIndexes {
                  batch,
-                 transaction_index,
-             }| {
-                if first_transaction_index.is_none() {
-                    first_transaction_index = Some(transaction_index);
-                }
-                batch.sanitized_transactions().to_vec()
-            },
+                 ..
+             }| batch.sanitized_transactions().to_vec(),
         )
+        .collect::<Vec<_>>();
+    let transaction_indexes = batches
+        .iter()
+        .flat_map(|TransactionBatchWithIndexes { transaction_indexes, .. }| transaction_indexes.to_vec())
         .collect::<Vec<_>>();
 
     let cost_model = CostModel::new();
@@ -368,13 +372,8 @@ fn execute_batches(
 
     let target_batch_count = get_thread_count() as u64;
 
-    let mut tx_batches: Vec<TransactionBatchWithIndex> = vec![];
+    let mut tx_batches: Vec<TransactionBatchWithIndexes> = vec![];
     let rebatched_txs = if total_cost > target_batch_count.saturating_mul(minimal_tx_cost) {
-        // first_transaction_index is only None if sanitized_txs.is_empty(), in which case
-        // total_cost == 0 and cannot be larger than target batch cost
-        let first_transaction_index =
-            first_transaction_index.expect("first_transaction_index.is_some()");
-
         let target_batch_cost = total_cost / target_batch_count;
         let mut batch_cost: u64 = 0;
         let mut slice_start = 0;
@@ -383,12 +382,9 @@ fn execute_batches(
             batch_cost = batch_cost.saturating_add(cost);
             if batch_cost >= target_batch_cost || next_index == sanitized_txs.len() {
                 let tx_batch =
-                    rebatch_transactions(&lock_results, bank, &sanitized_txs, slice_start, index);
+                    rebatch_transactions(&lock_results, bank, &sanitized_txs, slice_start, index, &transaction_indexes);
                 slice_start = next_index;
-                tx_batches.push(TransactionBatchWithIndex {
-                    batch: tx_batch,
-                    transaction_index: first_transaction_index.saturating_add(slice_start),
-                });
+                tx_batches.push(tx_batch);
                 batch_cost = 0;
             }
         });
@@ -424,7 +420,7 @@ pub fn process_entries_for_tests(
     replay_vote_sender: Option<&ReplayVoteSender>,
 ) -> Result<()> {
     let mut entry_starting_index: usize = bank.transaction_count().try_into().unwrap();
-    let entry_indexes: Vec<_> = entries
+    let mut entry_indexes: Vec<_> = entries
         .iter()
         .map(|e| {
             let num_txs = e.transactions.len();
@@ -453,11 +449,26 @@ pub fn process_entries_for_tests(
         None,
         &mut timings,
         Arc::new(RwLock::new(BlockCostCapacityMeter::default())),
-        entry_indexes,
+        &mut entry_indexes,
     );
 
     debug!("process_entries: {:?}", timings);
     result
+}
+
+fn get_random_indices(len: usize) -> Vec<usize> {
+    let mut rng = thread_rng();
+    (1..len)
+        .rev()
+        .map(|i| rng.gen_range(0, i + 1))
+        .collect()
+}
+
+fn shuffle_slice<T>(indices: &[usize], slice: &mut [T]) {
+    assert_eq!(slice.len(), indices.len() + 1);
+    for (i, &rnd_ind) in (1..slice.len()).rev().zip(indices.iter()) {
+        slice.swap(i, rnd_ind);
+    }
 }
 
 // Note: If randomize is true this will shuffle entries' transactions in-place.
@@ -472,14 +483,13 @@ fn process_entries_with_callback(
     transaction_cost_metrics_sender: Option<&TransactionCostMetricsSender>,
     timings: &mut ExecuteTimings,
     cost_capacity_meter: Arc<RwLock<BlockCostCapacityMeter>>,
-    entry_indexes: Vec<Vec<usize>>,
+    entry_indexes: &mut [Vec<usize>],
 ) -> Result<()> {
     // accumulator for entries that can be processed in parallel
     let mut batches = vec![];
     let mut tick_hashes = vec![];
-    let mut rng = thread_rng();
 
-    for entry in entries {
+    for (entry, transaction_indexes) in entries.iter_mut().zip(entry_indexes) {
         match entry {
             EntryType::Tick(hash) => {
                 // If it's a tick, save it for later
@@ -504,13 +514,17 @@ fn process_entries_with_callback(
                 }
             }
             EntryType::Transactions(transactions) => {
+                let mut transactions = transactions;
+                let mut transaction_indexes = transaction_indexes;
                 if let Some(transaction_cost_metrics_sender) = transaction_cost_metrics_sender {
                     transaction_cost_metrics_sender
                         .send_cost_details(bank.clone(), transactions.iter());
                 }
 
                 if randomize {
-                    transactions.shuffle(&mut rng);
+                    let indices = get_random_indices(transactions.len());
+                    shuffle_slice(&indices, &mut transactions);
+                    shuffle_slice(&indices, &mut transaction_indexes);
                 }
 
                 loop {
@@ -520,9 +534,9 @@ fn process_entries_with_callback(
 
                     // if locking worked
                     if first_lock_err.is_ok() {
-                        batches.push(TransactionBatchWithIndex {
+                        batches.push(TransactionBatchWithIndexes {
                             batch,
-                            transaction_index: 0,
+                            transaction_indexes: transaction_indexes.to_vec(),
                         });
                         // done with this entry
                         break;
@@ -1058,7 +1072,7 @@ pub fn confirm_slot(
                 transaction_cost_metrics_sender,
                 &mut execute_timings,
                 cost_capacity_meter,
-                entry_indexes,
+                &mut entry_indexes,
             )
             .map_err(BlockstoreProcessorError::from);
             replay_elapsed.stop();
@@ -1517,7 +1531,7 @@ pub struct TransactionStatusBatch {
     pub balances: TransactionBalancesSet,
     pub token_balances: TransactionTokenBalancesSet,
     pub rent_debits: Vec<RentDebits>,
-    pub first_transaction_index: usize,
+    pub transaction_indexes: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -1534,7 +1548,7 @@ impl TransactionStatusSender {
         balances: TransactionBalancesSet,
         token_balances: TransactionTokenBalancesSet,
         rent_debits: Vec<RentDebits>,
-        first_transaction_index: usize,
+        transaction_indexes: Vec<usize>,
     ) {
         let slot = bank.slot();
 
@@ -1553,7 +1567,7 @@ impl TransactionStatusSender {
                 balances,
                 token_balances,
                 rent_debits,
-                first_transaction_index,
+                transaction_indexes,
             }))
         {
             trace!(
