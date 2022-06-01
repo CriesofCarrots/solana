@@ -1357,6 +1357,7 @@ impl BankingStage {
                     );
                     if let Some(transaction_status_sender) = transaction_status_sender {
                         let txs = batch.sanitized_transactions().to_vec();
+                        let num_txs = txs.len();
                         let post_balances = bank.collect_balances(batch);
                         let post_token_balances =
                             collect_token_balances(bank, batch, &mut mint_decimals);
@@ -1370,7 +1371,7 @@ impl BankingStage {
                                 post_token_balances,
                             ),
                             tx_results.rent_debits,
-                            0, // This is blatantly not correct at this time.
+                            Vec::with_capacity(num_txs), // This is blatantly not correct at this time.
                         );
                     }
                 },
