@@ -1869,7 +1869,12 @@ impl Blockstore {
 
     /// The first complete block that is available in the Blockstore ledger
     pub fn get_first_available_block(&self) -> Result<Slot> {
-        let mut root_iterator = self.rooted_slot_iterator(self.lowest_slot_with_genesis())?;
+        let lowest_slot = self.lowest_slot_with_genesis();
+        warn!("lowest_slot {:?}", lowest_slot);
+        let mut root_iterator = self.rooted_slot_iterator(lowest_slot)?;
+        warn!("{:?}", root_iterator.next());
+        warn!("{:?}", root_iterator.next());
+        let mut root_iterator = self.rooted_slot_iterator(lowest_slot)?;
         let first_root = root_iterator.next().unwrap_or_default();
         // If the first root is slot 0, it is genesis. Genesis is always complete, so it is correct
         // to return it as first-available.
