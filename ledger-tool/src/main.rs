@@ -2584,6 +2584,13 @@ fn main() {
                         let data_len = account.data().len();
                         println!("{}:", pubkey);
                         println!("  - balance: {} SOL", lamports_to_sol(account.lamports()));
+                        println!(
+                            "  amount needed: {} SOL",
+                            lamports_to_sol(
+                                rent.minimum_balance(account.data().len())
+                                    .saturating_sub(account.lamports())
+                            )
+                        );
                         println!("  - owner: '{}'", account.owner());
                         println!("  - executable: {}", account.executable());
                         println!("  - slot: {}", slot);
