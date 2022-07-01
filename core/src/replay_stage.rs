@@ -1809,6 +1809,7 @@ impl ReplayStage {
         let new_root = tower.record_bank_vote(bank, vote_account_pubkey);
 
         if let Some(new_root) = new_root {
+            warn!("new_root {:?}", new_root);
             // get the root bank before squash
             let root_bank = bank_forks
                 .read()
