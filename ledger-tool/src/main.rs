@@ -359,9 +359,17 @@ fn output_account(
     account: &AccountSharedData,
     modified_slot: Option<Slot>,
     print_account_data: bool,
+    rent: &Rent,
 ) {
     println!("{}", pubkey);
     println!("  balance: {} SOL", lamports_to_sol(account.lamports()));
+    println!(
+        "  amount needed: {} SOL",
+        lamports_to_sol(
+            rent.minimum_balance(account.data().len())
+                .saturating_sub(account.lamports())
+        )
+    );
     println!("  owner: '{}'", account.owner());
     println!("  executable: {}", account.executable());
     if let Some(slot) = modified_slot {
@@ -1920,6 +1928,7 @@ fn main() {
                             &AccountSharedData::from(account),
                             None,
                             print_account_data,
+                            &genesis_config.rent,
                         );
                     }
                 } else {
@@ -2878,7 +2887,7 @@ fn main() {
                     let print_account_data = !arg_matches.is_present("no_account_data");
                     let mut measure = Measure::start("printing account contents");
                     for (pubkey, (account, slot)) in accounts.into_iter() {
-                        output_account(&pubkey, &account, Some(slot), print_account_data);
+                        output_account(&pubkey, &account, Some(slot), print_account_data, &rent);
                     }
                     measure.stop();
                     info!("{}", measure);
