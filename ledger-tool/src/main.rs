@@ -2549,13 +2549,18 @@ fn main() {
                 });
 
                 let bank = bank_forks.working_bank();
+                let rent = bank.rent_collector().rent;
                 let mut measure = Measure::start("getting accounts");
                 let accounts: BTreeMap<_, _> = bank
                     .get_all_accounts_with_modified_slots()
                     .unwrap()
                     .into_iter()
-                    .filter(|(pubkey, _account, _slot)| {
-                        include_sysvars || !solana_sdk::sysvar::is_sysvar_id(pubkey)
+                    .filter(|(pubkey, account, _slot)| {
+                        let account_data_size = account.data().len();
+                        let lamports = account.lamports();
+                        let is_rent_exempt = rent.is_exempt(lamports, account_data_size);
+                        (include_sysvars || !solana_sdk::sysvar::is_sysvar_id(pubkey))
+                            && !is_rent_exempt
                     })
                     .map(|(pubkey, account, slot)| (pubkey, (account, slot)))
                     .collect();
