@@ -5,17 +5,17 @@
 # Warning: this process is a little slow
 #
 
-if ! command -v grcov; then
-  echo "Error: grcov not found.  Try |cargo install grcov|"
-  exit 1
-fi
-
-if [[ ! "$(grcov --version)" =~ 0.8.[0-9] ]]; then
-  echo Error: Required grcov version not installed
-
-  echo "Installed version: $(grcov --version)"
-  exit 1
-fi
+# if ! command -v grcov; then
+#   echo "Error: grcov not found.  Try |cargo install grcov|"
+#   exit 1
+# fi
+#
+# if [[ ! "$(grcov --version)" =~ 0.8.[0-9] ]]; then
+#   echo Error: Required grcov version not installed
+#
+#   echo "Installed version: $(grcov --version)"
+#   exit 1
+# fi
 
 set -e
 cd "$(dirname "$0")/.."
@@ -89,6 +89,7 @@ else
     exit $test_status
   fi
 fi
+exit 0
 touch target/cov/after-test
 
 echo "--- grcov"
