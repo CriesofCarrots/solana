@@ -328,8 +328,8 @@ pub struct UiTransactionStatusMeta {
     pub pre_token_balances: Option<Vec<UiTransactionTokenBalance>>,
     pub post_token_balances: Option<Vec<UiTransactionTokenBalance>>,
     pub rewards: Option<Rewards>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub loaded_addresses: Option<UiLoadedAddresses>,
+    #[serde(default, skip_serializing_if = "ConditionalOption::should_skip")]
+    pub loaded_addresses: ConditionalOption<UiLoadedAddresses>,
     pub return_data: Option<TransactionReturnData>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compute_units_consumed: Option<u64>,
@@ -385,7 +385,7 @@ impl UiTransactionStatusMeta {
                 .post_token_balances
                 .map(|balance| balance.into_iter().map(Into::into).collect()),
             rewards: meta.rewards,
-            loaded_addresses: None,
+            loaded_addresses: ConditionalOption::Skip,
             return_data: meta.return_data,
             compute_units_consumed: meta.compute_units_consumed,
         }
@@ -412,7 +412,9 @@ impl From<TransactionStatusMeta> for UiTransactionStatusMeta {
                 .post_token_balances
                 .map(|balance| balance.into_iter().map(Into::into).collect()),
             rewards: meta.rewards,
-            loaded_addresses: Some(UiLoadedAddresses::from(&meta.loaded_addresses)),
+            loaded_addresses: ConditionalOption::Some(UiLoadedAddresses::from(
+                &meta.loaded_addresses,
+            )),
             return_data: meta.return_data,
             compute_units_consumed: meta.compute_units_consumed,
         }
