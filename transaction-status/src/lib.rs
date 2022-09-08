@@ -3,6 +3,7 @@
 pub use {crate::extract_memos::extract_and_fmt_memos, solana_sdk::reward_type::RewardType};
 use {
     crate::{
+        conditional_option::{serialize_default_if_none, ConditionalOption},
         parse_accounts::{parse_legacy_message_accounts, parse_v0_message_accounts, ParsedAccount},
         parse_instruction::{parse, ParsedInstruction},
     },
@@ -321,7 +322,8 @@ pub struct UiTransactionStatusMeta {
     pub fee: u64,
     pub pre_balances: Vec<u64>,
     pub post_balances: Vec<u64>,
-    pub inner_instructions: Option<Vec<UiInnerInstructions>>,
+    #[serde(default, serialize_with = "serialize_default_if_none")]
+    pub inner_instructions: ConditionalOption<Vec<UiInnerInstructions>>,
     pub log_messages: Option<Vec<String>>,
     pub pre_token_balances: Option<Vec<UiTransactionTokenBalance>>,
     pub post_token_balances: Option<Vec<UiTransactionTokenBalance>>,
@@ -367,11 +369,14 @@ impl UiTransactionStatusMeta {
             fee: meta.fee,
             pre_balances: meta.pre_balances,
             post_balances: meta.post_balances,
-            inner_instructions: meta.inner_instructions.map(|ixs| {
-                ixs.into_iter()
-                    .map(|ix| UiInnerInstructions::parse(ix, &account_keys))
-                    .collect()
-            }),
+            inner_instructions: meta
+                .inner_instructions
+                .map(|ixs| {
+                    ixs.into_iter()
+                        .map(|ix| UiInnerInstructions::parse(ix, &account_keys))
+                        .collect()
+                })
+                .into(),
             log_messages: meta.log_messages,
             pre_token_balances: meta
                 .pre_token_balances
@@ -397,7 +402,8 @@ impl From<TransactionStatusMeta> for UiTransactionStatusMeta {
             post_balances: meta.post_balances,
             inner_instructions: meta
                 .inner_instructions
-                .map(|ixs| ixs.into_iter().map(Into::into).collect()),
+                .map(|ixs| ixs.into_iter().map(Into::into).collect())
+                .into(),
             log_messages: meta.log_messages,
             pre_token_balances: meta
                 .pre_token_balances

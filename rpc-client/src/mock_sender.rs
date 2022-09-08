@@ -223,7 +223,7 @@ impl RpcSender for MockSender {
                             fee: 0,
                             pre_balances: vec![499999999999999950, 50, 1],
                             post_balances: vec![499999999999999950, 50, 1],
-                            inner_instructions: None,
+                            inner_instructions: None.into(),
                             log_messages: None,
                             pre_token_balances: None,
                             post_token_balances: None,
