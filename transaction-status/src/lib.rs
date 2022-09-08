@@ -32,6 +32,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate serde_derive;
 
+pub mod conditional_option;
 pub mod extract_memos;
 pub mod parse_accounts;
 pub mod parse_address_lookup_table;
