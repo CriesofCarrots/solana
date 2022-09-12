@@ -3,7 +3,7 @@
 pub use {crate::extract_memos::extract_and_fmt_memos, solana_sdk::reward_type::RewardType};
 use {
     crate::{
-        option_serializer::OptionSerializer,
+        option_serializer::OptionalValue,
         parse_accounts::{parse_legacy_message_accounts, parse_v0_message_accounts, ParsedAccount},
         parse_instruction::{parse, ParsedInstruction},
     },
@@ -322,16 +322,12 @@ pub struct UiTransactionStatusMeta {
     pub fee: u64,
     pub pre_balances: Vec<u64>,
     pub post_balances: Vec<u64>,
-    pub inner_instructions: OptionSerializer<Vec<UiInnerInstructions>>,
+    pub inner_instructions: OptionalValue<Vec<UiInnerInstructions>>,
     pub log_messages: Option<Vec<String>>,
     pub pre_token_balances: Option<Vec<UiTransactionTokenBalance>>,
     pub post_token_balances: Option<Vec<UiTransactionTokenBalance>>,
     pub rewards: Option<Rewards>,
-    #[serde(
-        default = "OptionSerializer::skip",
-        skip_serializing_if = "OptionSerializer::should_skip"
-    )]
-    pub loaded_addresses: OptionSerializer<UiLoadedAddresses>,
+    pub loaded_addresses: OptionalValue<UiLoadedAddresses>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub return_data: Option<UiTransactionReturnData>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -372,11 +368,15 @@ impl UiTransactionStatusMeta {
             fee: meta.fee,
             pre_balances: meta.pre_balances,
             post_balances: meta.post_balances,
-            inner_instructions: OptionSerializer::or_default(meta.inner_instructions.map(|ixs| {
-                ixs.into_iter()
-                    .map(|ix| UiInnerInstructions::parse(ix, &account_keys))
-                    .collect()
-            })),
+            inner_instructions: OptionalValue::some(
+                meta.inner_instructions
+                    .map(|ixs| {
+                        ixs.into_iter()
+                            .map(|ix| UiInnerInstructions::parse(ix, &account_keys))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            ),
             log_messages: meta.log_messages,
             pre_token_balances: meta
                 .pre_token_balances
@@ -385,7 +385,7 @@ impl UiTransactionStatusMeta {
                 .post_token_balances
                 .map(|balance| balance.into_iter().map(Into::into).collect()),
             rewards: if show_rewards { meta.rewards } else { None },
-            loaded_addresses: OptionSerializer::Skip,
+            loaded_addresses: OptionalValue::skip(),
             return_data: meta.return_data.map(|return_data| return_data.into()),
             compute_units_consumed: meta.compute_units_consumed,
         }
@@ -400,9 +400,10 @@ impl From<TransactionStatusMeta> for UiTransactionStatusMeta {
             fee: meta.fee,
             pre_balances: meta.pre_balances,
             post_balances: meta.post_balances,
-            inner_instructions: OptionSerializer::or_default(
+            inner_instructions: OptionalValue::some(
                 meta.inner_instructions
-                    .map(|ixs| ixs.into_iter().map(Into::into).collect()),
+                    .map(|ixs| ixs.into_iter().map(Into::into).collect())
+                    .unwrap_or_default(),
             ),
             log_messages: meta.log_messages,
             pre_token_balances: meta
@@ -412,7 +413,7 @@ impl From<TransactionStatusMeta> for UiTransactionStatusMeta {
                 .post_token_balances
                 .map(|balance| balance.into_iter().map(Into::into).collect()),
             rewards: meta.rewards,
-            loaded_addresses: Some(UiLoadedAddresses::from(&meta.loaded_addresses)).into(),
+            loaded_addresses: OptionalValue::some(UiLoadedAddresses::from(&meta.loaded_addresses)),
             return_data: meta.return_data.map(|return_data| return_data.into()),
             compute_units_consumed: meta.compute_units_consumed,
         }
