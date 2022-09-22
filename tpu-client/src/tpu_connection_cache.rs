@@ -2,14 +2,10 @@ use {
     crate::{
         nonblocking::{
             quic_client::{
-                QuicClient, QuicClientCertificate, QuicLazyInitializedEndpoint,
-                QuicTpuConnection as NonblockingQuicTpuConnection,
+                QuicClientCertificate, QuicLazyInitializedEndpoint,
             },
-            udp_client::UdpTpuConnection as NonblockingUdpTpuConnection,
         },
-        quic_client::QuicTpuConnection as BlockingQuicTpuConnection,
         tpu_connection::ClientStats,
-        udp_client::UdpTpuConnection as BlockingUdpTpuConnection,
     },
     indexmap::map::{Entry, IndexMap},
     rand::{thread_rng, Rng},
@@ -234,24 +230,24 @@ impl ConnectionCacheStats {
 }
 
 pub struct ConnectionCache<T: BaseTpuConnection> {
-    map: RwLock<IndexMap<SocketAddr, ConnectionPool<T>>>,
-    stats: Arc<ConnectionCacheStats>,
-    last_stats: AtomicInterval,
-    connection_pool_size: usize,
-    tpu_udp_socket: Arc<UdpSocket>,
-    client_certificate: Arc<QuicClientCertificate>,
-    use_quic: bool,
-    maybe_staked_nodes: Option<Arc<RwLock<StakedNodes>>>,
-    maybe_client_pubkey: Option<Pubkey>,
+    pub map: RwLock<IndexMap<SocketAddr, ConnectionPool<T>>>,
+    pub stats: Arc<ConnectionCacheStats>,
+    pub last_stats: AtomicInterval,
+    pub connection_pool_size: usize,
+    pub tpu_udp_socket: Arc<UdpSocket>,
+    pub client_certificate: Arc<QuicClientCertificate>,
+    pub use_quic: bool,
+    pub maybe_staked_nodes: Option<Arc<RwLock<StakedNodes>>>,
+    pub maybe_client_pubkey: Option<Pubkey>,
 }
 
 /// Models the pool of connections
-struct ConnectionPool<T: BaseTpuConnection> {
+pub struct ConnectionPool<T: BaseTpuConnection> {
     /// The connections in the pool
-    connections: Vec<Arc<T>>,
+    pub connections: Vec<Arc<T>>,
 
     /// Connections in this pool share the same endpoint
-    endpoint: Option<Arc<QuicLazyInitializedEndpoint>>,
+    pub endpoint: Option<Arc<QuicLazyInitializedEndpoint>>,
 }
 
 impl<T: BaseTpuConnection> ConnectionPool<T> {
@@ -265,7 +261,7 @@ impl<T: BaseTpuConnection> ConnectionPool<T> {
 
     /// Check if we need to create a new connection. If the count of the connections
     /// is smaller than the pool size.
-    fn need_new_connection(&self, required_pool_size: usize) -> bool {
+    pub fn need_new_connection(&self, required_pool_size: usize) -> bool {
         self.connections.len() < required_pool_size
     }
 }
@@ -317,7 +313,7 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
         self.use_quic
     }
 
-    fn create_endpoint(&self, force_use_udp: bool) -> Option<Arc<QuicLazyInitializedEndpoint>> {
+    pub fn create_endpoint(&self, force_use_udp: bool) -> Option<Arc<QuicLazyInitializedEndpoint>> {
         if self.use_quic() && !force_use_udp {
             Some(Arc::new(QuicLazyInitializedEndpoint::new(
                 self.client_certificate.clone(),
@@ -327,7 +323,7 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
         }
     }
 
-    fn compute_max_parallel_streams(&self) -> usize {
+    pub fn compute_max_parallel_streams(&self) -> usize {
         let (client_type, stake, total_stake) =
             self.maybe_client_pubkey
                 .map_or((ConnectionPeerType::Unstaked, 0, 0), |pubkey| {
@@ -596,72 +592,6 @@ pub trait BaseTpuConnection {
     ) -> Self::NonblockingConnectionType;
 }
 
-struct Udp(Arc<UdpSocket>);
-impl BaseTpuConnection for Udp {
-    type BlockingConnectionType = BlockingUdpTpuConnection;
-    type NonblockingConnectionType = NonblockingUdpTpuConnection;
-
-    fn create_a_thing(cache: &ConnectionCache<Udp>, _addr: &SocketAddr) -> Self {
-        Self(cache.tpu_udp_socket.clone())
-    }
-
-    fn new_blocking_connection(
-        &self,
-        addr: SocketAddr,
-        _stats: Arc<ConnectionCacheStats>,
-    ) -> BlockingUdpTpuConnection {
-        BlockingUdpTpuConnection::new_from_addr(self.0.clone(), addr).into()
-    }
-
-    fn new_nonblocking_connection(
-        &self,
-        addr: SocketAddr,
-        _stats: Arc<ConnectionCacheStats>,
-    ) -> NonblockingUdpTpuConnection {
-        NonblockingUdpTpuConnection::new_from_addr(self.0.try_clone().unwrap(), addr).into()
-    }
-}
-
-struct Quic(Arc<QuicClient>);
-impl BaseTpuConnection for Quic {
-    type BlockingConnectionType = BlockingQuicTpuConnection;
-    type NonblockingConnectionType = NonblockingQuicTpuConnection;
-
-    fn create_a_thing(cache: &ConnectionCache<Quic>, addr: &SocketAddr) -> Self {
-        let map = cache.map.write().unwrap();
-
-        let (_to_create_connection, endpoint) =
-            map.get(addr)
-                .map_or((true, cache.create_endpoint(false)), |pool| {
-                    (
-                        pool.need_new_connection(cache.connection_pool_size),
-                        pool.endpoint.clone(),
-                    )
-                });
-
-        Self(Arc::new(QuicClient::new(
-            endpoint.as_ref().unwrap().clone(),
-            *addr,
-            cache.compute_max_parallel_streams(),
-        )))
-    }
-
-    fn new_blocking_connection(
-        &self,
-        _addr: SocketAddr,
-        stats: Arc<ConnectionCacheStats>,
-    ) -> BlockingQuicTpuConnection {
-        BlockingQuicTpuConnection::new_with_client(self.0.clone(), stats).into()
-    }
-
-    fn new_nonblocking_connection(
-        &self,
-        _addr: SocketAddr,
-        stats: Arc<ConnectionCacheStats>,
-    ) -> NonblockingQuicTpuConnection {
-        NonblockingQuicTpuConnection::new_with_client(self.0.clone(), stats).into()
-    }
-}
 
 struct GetConnectionResult<T: BaseTpuConnection> {
     connection: Arc<T>,
