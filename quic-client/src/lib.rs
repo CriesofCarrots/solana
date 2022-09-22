@@ -8,38 +8,149 @@ extern crate solana_metrics;
 
 use {
     crate::{
-        nonblocking::quic_client::{QuicClient, QuicTpuConnection as NonblockingQuicTpuConnection},
+        nonblocking::quic_client::{
+            QuicClient, QuicClientCertificate, QuicLazyInitializedEndpoint,
+            QuicTpuConnection as NonblockingQuicTpuConnection,
+        },
         quic_client::QuicTpuConnection as BlockingQuicTpuConnection,
     },
-    solana_tpu_client::tpu_connection_cache::{
-        BaseTpuConnection, ConnectionCache, ConnectionCacheStats,
+    solana_sdk::{pubkey::Pubkey, quic::QUIC_PORT_OFFSET, signature::Keypair},
+    solana_streamer::{
+        nonblocking::quic::{compute_max_allowed_uni_streams, ConnectionPeerType},
+        streamer::StakedNodes,
+        tls_certificates::new_self_signed_tls_certificate_chain,
     },
-    std::{net::SocketAddr, sync::Arc},
+    solana_tpu_client::tpu_connection_cache::{
+        BaseTpuConnection, ConnectionCacheStats, ConnectionPool,
+    },
+    std::{
+        error::Error,
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        sync::{Arc, RwLock},
+    },
 };
 
-struct Quic(Arc<QuicClient>);
+pub struct QuicPool {
+    connections: Vec<Arc<Quic>>,
+    endpoint: Arc<QuicLazyInitializedEndpoint>,
+}
+impl ConnectionPool for QuicPool {
+    type PoolTpuConnection = Quic;
+    type TpuConfig = QuicConfig;
+    const PORT_OFFSET: u16 = QUIC_PORT_OFFSET;
+
+    fn new_with_connection(config: &Self::TpuConfig, addr: &SocketAddr) -> Self {
+        let mut pool = Self {
+            connections: vec![],
+            endpoint: config.create_endpoint(),
+        };
+        let connection = Arc::new(pool.create_pool_entry(config, addr));
+        pool.connections.push(connection);
+        pool
+    }
+
+    fn add_connection(&mut self, config: &Self::TpuConfig, addr: &SocketAddr) {
+        let connection = Arc::new(self.create_pool_entry(config, addr));
+        self.connections.push(connection);
+    }
+
+    fn num_connections(&self) -> usize {
+        self.connections.len()
+    }
+
+    fn get_connection_unchecked(&self, index: usize) -> Arc<Self::PoolTpuConnection> {
+        self.connections[index].clone()
+    }
+
+    fn create_pool_entry(
+        &self,
+        config: &Self::TpuConfig,
+        addr: &SocketAddr,
+    ) -> Self::PoolTpuConnection {
+        Quic(Arc::new(QuicClient::new(
+            self.endpoint.clone(),
+            *addr,
+            config.compute_max_parallel_streams(),
+        )))
+    }
+}
+
+pub struct QuicConfig {
+    client_certificate: Arc<QuicClientCertificate>,
+    maybe_staked_nodes: Option<Arc<RwLock<StakedNodes>>>,
+    maybe_client_pubkey: Option<Pubkey>,
+}
+
+impl Default for QuicConfig {
+    fn default() -> Self {
+        let (certs, priv_key) = new_self_signed_tls_certificate_chain(
+            &Keypair::new(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+        )
+        .expect("Failed to initialize QUIC client certificates");
+        Self {
+            client_certificate: Arc::new(QuicClientCertificate {
+                certificates: certs,
+                key: priv_key,
+            }),
+            maybe_staked_nodes: None,
+            maybe_client_pubkey: None,
+        }
+    }
+}
+
+impl QuicConfig {
+    fn create_endpoint(&self) -> Arc<QuicLazyInitializedEndpoint> {
+        Arc::new(QuicLazyInitializedEndpoint::new(
+            self.client_certificate.clone(),
+        ))
+    }
+
+    pub fn update_client_certificate(
+        &mut self,
+        keypair: &Keypair,
+        ipaddr: IpAddr,
+    ) -> Result<(), Box<dyn Error>> {
+        let (certs, priv_key) = new_self_signed_tls_certificate_chain(keypair, ipaddr)?;
+        self.client_certificate = Arc::new(QuicClientCertificate {
+            certificates: certs,
+            key: priv_key,
+        });
+        Ok(())
+    }
+
+    pub fn set_staked_nodes(
+        &mut self,
+        staked_nodes: &Arc<RwLock<StakedNodes>>,
+        client_pubkey: &Pubkey,
+    ) {
+        self.maybe_staked_nodes = Some(staked_nodes.clone());
+        self.maybe_client_pubkey = Some(*client_pubkey);
+    }
+
+    fn compute_max_parallel_streams(&self) -> usize {
+        let (client_type, stake, total_stake) =
+            self.maybe_client_pubkey
+                .map_or((ConnectionPeerType::Unstaked, 0, 0), |pubkey| {
+                    self.maybe_staked_nodes.as_ref().map_or(
+                        (ConnectionPeerType::Unstaked, 0, 0),
+                        |stakes| {
+                            let rstakes = stakes.read().unwrap();
+                            rstakes.pubkey_stake_map.get(&pubkey).map_or(
+                                (ConnectionPeerType::Unstaked, 0, rstakes.total_stake),
+                                |stake| (ConnectionPeerType::Staked, *stake, rstakes.total_stake),
+                            )
+                        },
+                    )
+                });
+        compute_max_allowed_uni_streams(client_type, stake, total_stake)
+    }
+}
+
+pub struct Quic(Arc<QuicClient>);
 impl BaseTpuConnection for Quic {
     type BlockingConnectionType = BlockingQuicTpuConnection;
     type NonblockingConnectionType = NonblockingQuicTpuConnection;
-
-    fn create_a_thing(cache: &ConnectionCache<Quic>, addr: &SocketAddr) -> Self {
-        let map = cache.map.write().unwrap();
-
-        let (_to_create_connection, endpoint) =
-            map.get(addr)
-                .map_or((true, cache.create_endpoint(false)), |pool| {
-                    (
-                        pool.need_new_connection(cache.connection_pool_size),
-                        pool.endpoint.clone(),
-                    )
-                });
-
-        Self(Arc::new(QuicClient::new(
-            endpoint.as_ref().unwrap().clone(),
-            *addr,
-            cache.compute_max_parallel_streams(),
-        )))
-    }
 
     fn new_blocking_connection(
         &self,

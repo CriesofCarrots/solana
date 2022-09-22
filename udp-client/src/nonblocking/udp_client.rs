@@ -53,9 +53,10 @@ impl TpuConnection for UdpTpuConnection {
 #[cfg(test)]
 mod tests {
     use {
-        crate::nonblocking::{tpu_connection::TpuConnection, udp_client::UdpTpuConnection},
+        crate::nonblocking::udp_client::UdpTpuConnection,
         solana_sdk::packet::{Packet, PACKET_DATA_SIZE},
         solana_streamer::nonblocking::recvmmsg::recv_mmsg,
+        solana_tpu_client::nonblocking::tpu_connection::TpuConnection,
         std::net::{IpAddr, Ipv4Addr},
         tokio::net::UdpSocket,
     };

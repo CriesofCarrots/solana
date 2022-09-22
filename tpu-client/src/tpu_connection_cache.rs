@@ -1,26 +1,11 @@
 use {
-    crate::{
-        nonblocking::{
-            quic_client::{
-                QuicClientCertificate, QuicLazyInitializedEndpoint,
-            },
-        },
-        tpu_connection::ClientStats,
-    },
-    indexmap::map::{Entry, IndexMap},
+    crate::tpu_connection::ClientStats,
+    indexmap::map::IndexMap,
     rand::{thread_rng, Rng},
     solana_measure::measure::Measure,
-    solana_sdk::{
-        pubkey::Pubkey, quic::QUIC_PORT_OFFSET, signature::Keypair, timing::AtomicInterval,
-    },
-    solana_streamer::{
-        nonblocking::quic::{compute_max_allowed_uni_streams, ConnectionPeerType},
-        streamer::StakedNodes,
-        tls_certificates::new_self_signed_tls_certificate_chain,
-    },
+    solana_sdk::timing::AtomicInterval,
     std::{
-        error::Error,
-        net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
+        net::SocketAddr,
         sync::{
             atomic::{AtomicU64, Ordering},
             Arc, RwLock,
@@ -229,116 +214,20 @@ impl ConnectionCacheStats {
     }
 }
 
-pub struct ConnectionCache<T: BaseTpuConnection> {
-    pub map: RwLock<IndexMap<SocketAddr, ConnectionPool<T>>>,
+pub struct ConnectionCache<P: ConnectionPool> {
+    pub map: RwLock<IndexMap<SocketAddr, P>>,
     pub stats: Arc<ConnectionCacheStats>,
     pub last_stats: AtomicInterval,
     pub connection_pool_size: usize,
-    pub tpu_udp_socket: Arc<UdpSocket>,
-    pub client_certificate: Arc<QuicClientCertificate>,
-    pub use_quic: bool,
-    pub maybe_staked_nodes: Option<Arc<RwLock<StakedNodes>>>,
-    pub maybe_client_pubkey: Option<Pubkey>,
+    pub tpu_config: P::TpuConfig,
 }
 
-/// Models the pool of connections
-pub struct ConnectionPool<T: BaseTpuConnection> {
-    /// The connections in the pool
-    pub connections: Vec<Arc<T>>,
-
-    /// Connections in this pool share the same endpoint
-    pub endpoint: Option<Arc<QuicLazyInitializedEndpoint>>,
-}
-
-impl<T: BaseTpuConnection> ConnectionPool<T> {
-    /// Get a connection from the pool. It must have at least one connection in the pool.
-    /// This randomly picks a connection in the pool.
-    fn borrow_connection(&self) -> Arc<T> {
-        let mut rng = thread_rng();
-        let n = rng.gen_range(0, self.connections.len());
-        self.connections[n].clone()
-    }
-
-    /// Check if we need to create a new connection. If the count of the connections
-    /// is smaller than the pool size.
-    pub fn need_new_connection(&self, required_pool_size: usize) -> bool {
-        self.connections.len() < required_pool_size
-    }
-}
-
-impl<T: BaseTpuConnection> ConnectionCache<T> {
+impl<P: ConnectionPool> ConnectionCache<P> {
     pub fn new(connection_pool_size: usize) -> Self {
-        // The minimum pool size is 1.
-        let connection_pool_size = 1.max(connection_pool_size);
         Self {
-            use_quic: true,
-            connection_pool_size,
+            connection_pool_size: 1.max(connection_pool_size), // The minimum pool size is 1.
             ..Self::default()
         }
-    }
-
-    pub fn update_client_certificate(
-        &mut self,
-        keypair: &Keypair,
-        ipaddr: IpAddr,
-    ) -> Result<(), Box<dyn Error>> {
-        let (certs, priv_key) = new_self_signed_tls_certificate_chain(keypair, ipaddr)?;
-        self.client_certificate = Arc::new(QuicClientCertificate {
-            certificates: certs,
-            key: priv_key,
-        });
-        Ok(())
-    }
-
-    pub fn set_staked_nodes(
-        &mut self,
-        staked_nodes: &Arc<RwLock<StakedNodes>>,
-        client_pubkey: &Pubkey,
-    ) {
-        self.maybe_staked_nodes = Some(staked_nodes.clone());
-        self.maybe_client_pubkey = Some(*client_pubkey);
-    }
-
-    pub fn with_udp(connection_pool_size: usize) -> Self {
-        // The minimum pool size is 1.
-        let connection_pool_size = 1.max(connection_pool_size);
-        Self {
-            use_quic: false,
-            connection_pool_size,
-            ..Self::default()
-        }
-    }
-
-    pub fn use_quic(&self) -> bool {
-        self.use_quic
-    }
-
-    pub fn create_endpoint(&self, force_use_udp: bool) -> Option<Arc<QuicLazyInitializedEndpoint>> {
-        if self.use_quic() && !force_use_udp {
-            Some(Arc::new(QuicLazyInitializedEndpoint::new(
-                self.client_certificate.clone(),
-            )))
-        } else {
-            None
-        }
-    }
-
-    pub fn compute_max_parallel_streams(&self) -> usize {
-        let (client_type, stake, total_stake) =
-            self.maybe_client_pubkey
-                .map_or((ConnectionPeerType::Unstaked, 0, 0), |pubkey| {
-                    self.maybe_staked_nodes.as_ref().map_or(
-                        (ConnectionPeerType::Unstaked, 0, 0),
-                        |stakes| {
-                            let rstakes = stakes.read().unwrap();
-                            rstakes.pubkey_stake_map.get(&pubkey).map_or(
-                                (ConnectionPeerType::Unstaked, 0, rstakes.total_stake),
-                                |stake| (ConnectionPeerType::Staked, *stake, rstakes.total_stake),
-                            )
-                        },
-                    )
-                });
-        compute_max_allowed_uni_streams(client_type, stake, total_stake)
     }
 
     /// Create a lazy connection object under the exclusive lock of the cache map if there is not
@@ -348,8 +237,7 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
         &self,
         lock_timing_ms: &mut u64,
         addr: &SocketAddr,
-        force_use_udp: bool,
-    ) -> CreateConnectionResult<T> {
+    ) -> CreateConnectionResult<P::PoolTpuConnection> {
         let mut get_connection_map_lock_measure = Measure::start("get_connection_map_lock_measure");
         let mut map = self.map.write().unwrap();
         get_connection_map_lock_measure.stop();
@@ -357,20 +245,12 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
         // Read again, as it is possible that between read lock dropped and the write lock acquired
         // another thread could have setup the connection.
 
-        let (to_create_connection, endpoint) =
-            map.get(addr)
-                .map_or((true, self.create_endpoint(force_use_udp)), |pool| {
-                    (
-                        pool.need_new_connection(self.connection_pool_size),
-                        pool.endpoint.clone(),
-                    )
-                });
+        let should_create_connection = map
+            .get(addr)
+            .map(|pool| pool.need_new_connection(self.connection_pool_size))
+            .unwrap_or(true);
 
-        let (cache_hit, num_evictions, eviction_timing_ms) = if to_create_connection {
-            let connection = T::create_a_thing(self, addr);
-
-            let connection = Arc::new(connection);
-
+        let (cache_hit, num_evictions, eviction_timing_ms) = if should_create_connection {
             // evict a connection if the cache is reaching upper bounds
             let mut num_evictions = 0;
             let mut get_connection_cache_eviction_measure =
@@ -383,18 +263,12 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
             }
             get_connection_cache_eviction_measure.stop();
 
-            match map.entry(*addr) {
-                Entry::Occupied(mut entry) => {
-                    let pool = entry.get_mut();
-                    pool.connections.push(connection);
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(ConnectionPool {
-                        connections: vec![connection],
-                        endpoint,
-                    });
-                }
-            }
+            map.entry(*addr)
+                .and_modify(|pool| {
+                    pool.add_connection(&self.tpu_config, addr);
+                })
+                .or_insert_with(|| P::new_with_connection(&self.tpu_config, addr));
+
             (
                 false,
                 num_evictions,
@@ -416,18 +290,20 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
         }
     }
 
-    fn get_or_add_connection(&self, addr: &SocketAddr) -> GetConnectionResult<T> {
+    fn get_or_add_connection(
+        &self,
+        addr: &SocketAddr,
+    ) -> GetConnectionResult<P::PoolTpuConnection> {
         let mut get_connection_map_lock_measure = Measure::start("get_connection_map_lock_measure");
         let map = self.map.read().unwrap();
         get_connection_map_lock_measure.stop();
 
-        let port_offset = if self.use_quic() { QUIC_PORT_OFFSET } else { 0 };
+        let port_offset = P::PORT_OFFSET;
 
         let port = addr
             .port()
             .checked_add(port_offset)
             .unwrap_or_else(|| addr.port());
-        let force_use_udp = port == addr.port();
         let addr = SocketAddr::new(addr.ip(), port);
 
         let mut lock_timing_ms = get_connection_map_lock_measure.as_ms();
@@ -448,7 +324,7 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
                 if pool.need_new_connection(self.connection_pool_size) {
                     // create more connection and put it in the pool
                     drop(map);
-                    self.create_connection(&mut lock_timing_ms, &addr, force_use_udp)
+                    self.create_connection(&mut lock_timing_ms, &addr)
                 } else {
                     let connection = pool.borrow_connection();
                     CreateConnectionResult {
@@ -463,7 +339,7 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
             None => {
                 // Upgrade to write access by dropping read lock and acquire write lock
                 drop(map);
-                self.create_connection(&mut lock_timing_ms, &addr, force_use_udp)
+                self.create_connection(&mut lock_timing_ms, &addr)
             }
         };
         get_connection_map_measure.stop();
@@ -483,7 +359,7 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
     fn get_connection_and_log_stats(
         &self,
         addr: &SocketAddr,
-    ) -> (Arc<T>, Arc<ConnectionCacheStats>) {
+    ) -> (Arc<P::PoolTpuConnection>, Arc<ConnectionCacheStats>) {
         let mut get_connection_measure = Measure::start("get_connection_measure");
         let GetConnectionResult {
             connection,
@@ -533,51 +409,71 @@ impl<T: BaseTpuConnection> ConnectionCache<T> {
         (connection, connection_cache_stats)
     }
 
-    pub fn get_connection(&self, addr: &SocketAddr) -> T::BlockingConnectionType {
+    pub fn get_connection(
+        &self,
+        addr: &SocketAddr,
+    ) -> <P::PoolTpuConnection as BaseTpuConnection>::BlockingConnectionType {
         let (connection, connection_cache_stats) = self.get_connection_and_log_stats(addr);
         connection.new_blocking_connection(*addr, connection_cache_stats)
     }
 
-    pub fn get_nonblocking_connection(&self, addr: &SocketAddr) -> T::NonblockingConnectionType {
+    pub fn get_nonblocking_connection(
+        &self,
+        addr: &SocketAddr,
+    ) -> <P::PoolTpuConnection as BaseTpuConnection>::NonblockingConnectionType {
         let (connection, connection_cache_stats) = self.get_connection_and_log_stats(addr);
         connection.new_nonblocking_connection(*addr, connection_cache_stats)
     }
 }
 
-impl<T: BaseTpuConnection> Default for ConnectionCache<T> {
+impl<P: ConnectionPool> Default for ConnectionCache<P> {
     fn default() -> Self {
-        let (certs, priv_key) = new_self_signed_tls_certificate_chain(
-            &Keypair::new(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-        )
-        .expect("Failed to initialize QUIC client certificates");
         Self {
             map: RwLock::new(IndexMap::with_capacity(MAX_CONNECTIONS)),
             stats: Arc::new(ConnectionCacheStats::default()),
             last_stats: AtomicInterval::default(),
             connection_pool_size: DEFAULT_TPU_CONNECTION_POOL_SIZE,
-            tpu_udp_socket: Arc::new(
-                solana_net_utils::bind_with_any_port(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))
-                    .expect("Unable to bind to UDP socket"),
-            ),
-            client_certificate: Arc::new(QuicClientCertificate {
-                certificates: certs,
-                key: priv_key,
-            }),
-            use_quic: DEFAULT_TPU_USE_QUIC,
-            maybe_staked_nodes: None,
-            maybe_client_pubkey: None,
+            tpu_config: P::TpuConfig::default(),
         }
     }
+}
+
+pub trait ConnectionPool {
+    type PoolTpuConnection: BaseTpuConnection;
+    type TpuConfig: Default;
+    const PORT_OFFSET: u16 = 0;
+
+    fn new_with_connection(config: &Self::TpuConfig, addr: &SocketAddr) -> Self;
+
+    fn add_connection(&mut self, config: &Self::TpuConfig, addr: &SocketAddr);
+
+    fn num_connections(&self) -> usize;
+
+    fn get_connection_unchecked(&self, index: usize) -> Arc<Self::PoolTpuConnection>;
+
+    /// Get a connection from the pool. It must have at least one connection in the pool.
+    /// This randomly picks a connection in the pool.
+    fn borrow_connection(&self) -> Arc<Self::PoolTpuConnection> {
+        let mut rng = thread_rng();
+        let n = rng.gen_range(0, self.num_connections());
+        self.get_connection_unchecked(n)
+    }
+    /// Check if we need to create a new connection. If the count of the connections
+    /// is smaller than the pool size.
+    fn need_new_connection(&self, required_pool_size: usize) -> bool {
+        self.num_connections() < required_pool_size
+    }
+
+    fn create_pool_entry(
+        &self,
+        config: &Self::TpuConfig,
+        addr: &SocketAddr,
+    ) -> Self::PoolTpuConnection;
 }
 
 pub trait BaseTpuConnection {
     type BlockingConnectionType;
     type NonblockingConnectionType;
-
-    fn create_a_thing(cache: &ConnectionCache<Self>, addr: &SocketAddr) -> Self
-    where
-        Self: Sized;
 
     fn new_blocking_connection(
         &self,
@@ -591,7 +487,6 @@ pub trait BaseTpuConnection {
         stats: Arc<ConnectionCacheStats>,
     ) -> Self::NonblockingConnectionType;
 }
-
 
 struct GetConnectionResult<T: BaseTpuConnection> {
     connection: Arc<T>,
