@@ -1,11 +1,15 @@
 use {
     crate::{
         nonblocking::{
-            quic_client::{QuicClient, QuicClientCertificate, QuicLazyInitializedEndpoint},
-            tpu_connection::NonblockingConnection,
+            quic_client::{
+                QuicClient, QuicClientCertificate, QuicLazyInitializedEndpoint,
+                QuicTpuConnection as NonblockingQuicTpuConnection,
+            },
+            udp_client::UdpTpuConnection as NonblockingUdpTpuConnection,
         },
-        tpu_connection::BlockingConnection,
-        tpu_connection_cache::{ConnectionCacheStats, CONNECTION_STAT_SUBMISSION_INTERVAL},
+        quic_client::QuicTpuConnection as BlockingQuicTpuConnection,
+        tpu_connection::ClientStats,
+        udp_client::UdpTpuConnection as BlockingUdpTpuConnection,
     },
     indexmap::map::{Entry, IndexMap},
     rand::{thread_rng, Rng},
@@ -21,7 +25,10 @@ use {
     std::{
         error::Error,
         net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
-        sync::{atomic::Ordering, Arc, RwLock},
+        sync::{
+            atomic::{AtomicU64, Ordering},
+            Arc, RwLock,
+        },
     },
 };
 
@@ -37,8 +44,197 @@ pub const DEFAULT_TPU_CONNECTION_POOL_SIZE: usize = 4;
 
 pub const DEFAULT_TPU_ENABLE_UDP: bool = false;
 
-pub struct ConnectionCache {
-    map: RwLock<IndexMap<SocketAddr, ConnectionPool>>,
+#[derive(Default)]
+pub struct ConnectionCacheStats {
+    pub(crate) cache_hits: AtomicU64,
+    pub(crate) cache_misses: AtomicU64,
+    pub(crate) cache_evictions: AtomicU64,
+    pub(crate) eviction_time_ms: AtomicU64,
+    pub(crate) sent_packets: AtomicU64,
+    pub(crate) total_batches: AtomicU64,
+    pub(crate) batch_success: AtomicU64,
+    pub(crate) batch_failure: AtomicU64,
+    pub(crate) get_connection_ms: AtomicU64,
+    pub(crate) get_connection_lock_ms: AtomicU64,
+    pub(crate) get_connection_hit_ms: AtomicU64,
+    pub(crate) get_connection_miss_ms: AtomicU64,
+
+    // Need to track these separately per-connection
+    // because we need to track the base stat value from quinn
+    pub total_client_stats: ClientStats,
+}
+
+pub const CONNECTION_STAT_SUBMISSION_INTERVAL: u64 = 2000;
+
+impl ConnectionCacheStats {
+    pub fn add_client_stats(
+        &self,
+        client_stats: &ClientStats,
+        num_packets: usize,
+        is_success: bool,
+    ) {
+        self.total_client_stats.total_connections.fetch_add(
+            client_stats.total_connections.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_client_stats.connection_reuse.fetch_add(
+            client_stats.connection_reuse.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_client_stats.connection_errors.fetch_add(
+            client_stats.connection_errors.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_client_stats.zero_rtt_accepts.fetch_add(
+            client_stats.zero_rtt_accepts.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_client_stats.zero_rtt_rejects.fetch_add(
+            client_stats.zero_rtt_rejects.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_client_stats.make_connection_ms.fetch_add(
+            client_stats.make_connection_ms.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.sent_packets
+            .fetch_add(num_packets as u64, Ordering::Relaxed);
+        self.total_batches.fetch_add(1, Ordering::Relaxed);
+        if is_success {
+            self.batch_success.fetch_add(1, Ordering::Relaxed);
+        } else {
+            self.batch_failure.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    pub(crate) fn report(&self) {
+        datapoint_info!(
+            "quic-client-connection-stats",
+            (
+                "cache_hits",
+                self.cache_hits.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "cache_misses",
+                self.cache_misses.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "cache_evictions",
+                self.cache_evictions.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "eviction_time_ms",
+                self.eviction_time_ms.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "get_connection_ms",
+                self.get_connection_ms.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "get_connection_lock_ms",
+                self.get_connection_lock_ms.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "get_connection_hit_ms",
+                self.get_connection_hit_ms.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "get_connection_miss_ms",
+                self.get_connection_miss_ms.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "make_connection_ms",
+                self.total_client_stats
+                    .make_connection_ms
+                    .swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "total_connections",
+                self.total_client_stats
+                    .total_connections
+                    .swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "connection_reuse",
+                self.total_client_stats
+                    .connection_reuse
+                    .swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "connection_errors",
+                self.total_client_stats
+                    .connection_errors
+                    .swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "zero_rtt_accepts",
+                self.total_client_stats
+                    .zero_rtt_accepts
+                    .swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "zero_rtt_rejects",
+                self.total_client_stats
+                    .zero_rtt_rejects
+                    .swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "congestion_events",
+                self.total_client_stats.congestion_events.load_and_reset(),
+                i64
+            ),
+            (
+                "tx_streams_blocked_uni",
+                self.total_client_stats
+                    .tx_streams_blocked_uni
+                    .load_and_reset(),
+                i64
+            ),
+            (
+                "tx_data_blocked",
+                self.total_client_stats.tx_data_blocked.load_and_reset(),
+                i64
+            ),
+            (
+                "tx_acks",
+                self.total_client_stats.tx_acks.load_and_reset(),
+                i64
+            ),
+            (
+                "num_packets",
+                self.sent_packets.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "total_batches",
+                self.total_batches.swap(0, Ordering::Relaxed),
+                i64
+            ),
+            (
+                "batch_failure",
+                self.batch_failure.swap(0, Ordering::Relaxed),
+                i64
+            ),
+        );
+    }
+}
+
+pub struct ConnectionCache<T: BaseTpuConnection> {
+    map: RwLock<IndexMap<SocketAddr, ConnectionPool<T>>>,
     stats: Arc<ConnectionCacheStats>,
     last_stats: AtomicInterval,
     connection_pool_size: usize,
@@ -50,18 +246,18 @@ pub struct ConnectionCache {
 }
 
 /// Models the pool of connections
-struct ConnectionPool {
+struct ConnectionPool<T: BaseTpuConnection> {
     /// The connections in the pool
-    connections: Vec<Arc<BaseTpuConnection>>,
+    connections: Vec<Arc<T>>,
 
     /// Connections in this pool share the same endpoint
     endpoint: Option<Arc<QuicLazyInitializedEndpoint>>,
 }
 
-impl ConnectionPool {
+impl<T: BaseTpuConnection> ConnectionPool<T> {
     /// Get a connection from the pool. It must have at least one connection in the pool.
     /// This randomly picks a connection in the pool.
-    fn borrow_connection(&self) -> Arc<BaseTpuConnection> {
+    fn borrow_connection(&self) -> Arc<T> {
         let mut rng = thread_rng();
         let n = rng.gen_range(0, self.connections.len());
         self.connections[n].clone()
@@ -74,7 +270,7 @@ impl ConnectionPool {
     }
 }
 
-impl ConnectionCache {
+impl<T: BaseTpuConnection> ConnectionCache<T> {
     pub fn new(connection_pool_size: usize) -> Self {
         // The minimum pool size is 1.
         let connection_pool_size = 1.max(connection_pool_size);
@@ -157,7 +353,7 @@ impl ConnectionCache {
         lock_timing_ms: &mut u64,
         addr: &SocketAddr,
         force_use_udp: bool,
-    ) -> CreateConnectionResult {
+    ) -> CreateConnectionResult<T> {
         let mut get_connection_map_lock_measure = Measure::start("get_connection_map_lock_measure");
         let mut map = self.map.write().unwrap();
         get_connection_map_lock_measure.stop();
@@ -175,15 +371,7 @@ impl ConnectionCache {
                 });
 
         let (cache_hit, num_evictions, eviction_timing_ms) = if to_create_connection {
-            let connection = if !self.use_quic() || force_use_udp {
-                BaseTpuConnection::Udp(self.tpu_udp_socket.clone())
-            } else {
-                BaseTpuConnection::Quic(Arc::new(QuicClient::new(
-                    endpoint.as_ref().unwrap().clone(),
-                    *addr,
-                    self.compute_max_parallel_streams(),
-                )))
-            };
+            let connection = T::create_a_thing(self, addr);
 
             let connection = Arc::new(connection);
 
@@ -232,7 +420,7 @@ impl ConnectionCache {
         }
     }
 
-    fn get_or_add_connection(&self, addr: &SocketAddr) -> GetConnectionResult {
+    fn get_or_add_connection(&self, addr: &SocketAddr) -> GetConnectionResult<T> {
         let mut get_connection_map_lock_measure = Measure::start("get_connection_map_lock_measure");
         let map = self.map.read().unwrap();
         get_connection_map_lock_measure.stop();
@@ -299,7 +487,7 @@ impl ConnectionCache {
     fn get_connection_and_log_stats(
         &self,
         addr: &SocketAddr,
-    ) -> (Arc<BaseTpuConnection>, Arc<ConnectionCacheStats>) {
+    ) -> (Arc<T>, Arc<ConnectionCacheStats>) {
         let mut get_connection_measure = Measure::start("get_connection_measure");
         let GetConnectionResult {
             connection,
@@ -349,18 +537,18 @@ impl ConnectionCache {
         (connection, connection_cache_stats)
     }
 
-    pub fn get_connection(&self, addr: &SocketAddr) -> BlockingConnection {
+    pub fn get_connection(&self, addr: &SocketAddr) -> T::BlockingConnectionType {
         let (connection, connection_cache_stats) = self.get_connection_and_log_stats(addr);
         connection.new_blocking_connection(*addr, connection_cache_stats)
     }
 
-    pub fn get_nonblocking_connection(&self, addr: &SocketAddr) -> NonblockingConnection {
+    pub fn get_nonblocking_connection(&self, addr: &SocketAddr) -> T::NonblockingConnectionType {
         let (connection, connection_cache_stats) = self.get_connection_and_log_stats(addr);
         connection.new_nonblocking_connection(*addr, connection_cache_stats)
     }
 }
 
-impl Default for ConnectionCache {
+impl<T: BaseTpuConnection> Default for ConnectionCache<T> {
     fn default() -> Self {
         let (certs, priv_key) = new_self_signed_tls_certificate_chain(
             &Keypair::new(),
@@ -387,46 +575,96 @@ impl Default for ConnectionCache {
     }
 }
 
-enum BaseTpuConnection {
-    Udp(Arc<UdpSocket>),
-    Quic(Arc<QuicClient>),
-}
-impl BaseTpuConnection {
+pub trait BaseTpuConnection {
+    type BlockingConnectionType;
+    type NonblockingConnectionType;
+
+    fn create_a_thing(cache: &ConnectionCache<Self>, addr: &SocketAddr) -> Self
+    where
+        Self: Sized;
+
     fn new_blocking_connection(
         &self,
         addr: SocketAddr,
         stats: Arc<ConnectionCacheStats>,
-    ) -> BlockingConnection {
-        use crate::{quic_client::QuicTpuConnection, udp_client::UdpTpuConnection};
-        match self {
-            BaseTpuConnection::Udp(udp_socket) => {
-                UdpTpuConnection::new_from_addr(udp_socket.clone(), addr).into()
-            }
-            BaseTpuConnection::Quic(quic_client) => {
-                QuicTpuConnection::new_with_client(quic_client.clone(), stats).into()
-            }
-        }
-    }
+    ) -> Self::BlockingConnectionType;
 
     fn new_nonblocking_connection(
         &self,
         addr: SocketAddr,
         stats: Arc<ConnectionCacheStats>,
-    ) -> NonblockingConnection {
-        use crate::nonblocking::{quic_client::QuicTpuConnection, udp_client::UdpTpuConnection};
-        match self {
-            BaseTpuConnection::Udp(udp_socket) => {
-                UdpTpuConnection::new_from_addr(udp_socket.try_clone().unwrap(), addr).into()
-            }
-            BaseTpuConnection::Quic(quic_client) => {
-                QuicTpuConnection::new_with_client(quic_client.clone(), stats).into()
-            }
-        }
+    ) -> Self::NonblockingConnectionType;
+}
+
+struct Udp(Arc<UdpSocket>);
+impl BaseTpuConnection for Udp {
+    type BlockingConnectionType = BlockingUdpTpuConnection;
+    type NonblockingConnectionType = NonblockingUdpTpuConnection;
+
+    fn create_a_thing(cache: &ConnectionCache<Udp>, _addr: &SocketAddr) -> Self {
+        Self(cache.tpu_udp_socket.clone())
+    }
+
+    fn new_blocking_connection(
+        &self,
+        addr: SocketAddr,
+        _stats: Arc<ConnectionCacheStats>,
+    ) -> BlockingUdpTpuConnection {
+        BlockingUdpTpuConnection::new_from_addr(self.0.clone(), addr).into()
+    }
+
+    fn new_nonblocking_connection(
+        &self,
+        addr: SocketAddr,
+        _stats: Arc<ConnectionCacheStats>,
+    ) -> NonblockingUdpTpuConnection {
+        NonblockingUdpTpuConnection::new_from_addr(self.0.try_clone().unwrap(), addr).into()
     }
 }
 
-struct GetConnectionResult {
-    connection: Arc<BaseTpuConnection>,
+struct Quic(Arc<QuicClient>);
+impl BaseTpuConnection for Quic {
+    type BlockingConnectionType = BlockingQuicTpuConnection;
+    type NonblockingConnectionType = NonblockingQuicTpuConnection;
+
+    fn create_a_thing(cache: &ConnectionCache<Quic>, addr: &SocketAddr) -> Self {
+        let map = cache.map.write().unwrap();
+
+        let (_to_create_connection, endpoint) =
+            map.get(addr)
+                .map_or((true, cache.create_endpoint(false)), |pool| {
+                    (
+                        pool.need_new_connection(cache.connection_pool_size),
+                        pool.endpoint.clone(),
+                    )
+                });
+
+        Self(Arc::new(QuicClient::new(
+            endpoint.as_ref().unwrap().clone(),
+            *addr,
+            cache.compute_max_parallel_streams(),
+        )))
+    }
+
+    fn new_blocking_connection(
+        &self,
+        _addr: SocketAddr,
+        stats: Arc<ConnectionCacheStats>,
+    ) -> BlockingQuicTpuConnection {
+        BlockingQuicTpuConnection::new_with_client(self.0.clone(), stats).into()
+    }
+
+    fn new_nonblocking_connection(
+        &self,
+        _addr: SocketAddr,
+        stats: Arc<ConnectionCacheStats>,
+    ) -> NonblockingQuicTpuConnection {
+        NonblockingQuicTpuConnection::new_with_client(self.0.clone(), stats).into()
+    }
+}
+
+struct GetConnectionResult<T: BaseTpuConnection> {
+    connection: Arc<T>,
     cache_hit: bool,
     report_stats: bool,
     map_timing_ms: u64,
@@ -436,8 +674,8 @@ struct GetConnectionResult {
     eviction_timing_ms: u64,
 }
 
-struct CreateConnectionResult {
-    connection: Arc<BaseTpuConnection>,
+struct CreateConnectionResult<T: BaseTpuConnection> {
+    connection: Arc<T>,
     cache_hit: bool,
     connection_cache_stats: Arc<ConnectionCacheStats>,
     num_evictions: u64,

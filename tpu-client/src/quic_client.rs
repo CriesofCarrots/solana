@@ -3,7 +3,6 @@
 
 use {
     crate::{
-        connection_cache::ConnectionCacheStats,
         nonblocking::{
             quic_client::{
                 QuicClient, QuicLazyInitializedEndpoint,
@@ -12,6 +11,7 @@ use {
             tpu_connection::TpuConnection as NonblockingTpuConnection,
         },
         tpu_connection::TpuConnection,
+        tpu_connection_cache::ConnectionCacheStats,
     },
     lazy_static::lazy_static,
     solana_sdk::transport::Result as TransportResult,

@@ -3,8 +3,8 @@
 //! server's flow control.
 use {
     crate::{
-        connection_cache::ConnectionCacheStats, nonblocking::tpu_connection::TpuConnection,
-        tpu_connection::ClientStats,
+        nonblocking::tpu_connection::TpuConnection, tpu_connection::ClientStats,
+        tpu_connection_cache::ConnectionCacheStats,
     },
     async_mutex::Mutex,
     async_trait::async_trait,

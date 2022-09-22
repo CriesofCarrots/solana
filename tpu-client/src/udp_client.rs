@@ -2,7 +2,7 @@
 //! an interface for sending transactions
 
 use {
-    crate::{connection_cache::ConnectionCacheStats, tpu_connection::TpuConnection},
+    crate::{tpu_connection::TpuConnection, tpu_connection_cache::ConnectionCacheStats},
     core::iter::repeat,
     solana_sdk::transport::Result as TransportResult,
     solana_streamer::sendmmsg::batch_send,
