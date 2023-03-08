@@ -5,7 +5,8 @@ use {
     rand::{thread_rng, Rng},
     rayon::prelude::*,
     solana_account_decoder::parse_token::spl_token_pubkey,
-    solana_clap_utils::input_parsers::pubkey_of,
+    solana_clap_utils::{input_parsers::pubkey_of, input_validators::is_url_or_moniker},
+    solana_cli_config::{ConfigInput, CONFIG_FILE},
     solana_client::transaction_executor::TransactionExecutor,
     solana_faucet::faucet::{request_airdrop_transaction, FAUCET_PORT},
     solana_gossip::gossip_service::discover,
@@ -256,6 +257,7 @@ fn make_close_message(
 
 #[allow(clippy::too_many_arguments)]
 fn run_accounts_bench(
+    json_rpc_url: String,
     entrypoint_addr: SocketAddr,
     faucet_addr: SocketAddr,
     payer_keypairs: &[&Keypair],
@@ -269,8 +271,9 @@ fn run_accounts_bench(
     reclaim_accounts: bool,
 ) {
     assert!(num_instructions > 0);
-    let client =
-        RpcClient::new_socket_with_commitment(entrypoint_addr, CommitmentConfig::confirmed());
+    // let client =
+    //     RpcClient::new_socket_with_commitment(entrypoint_addr, CommitmentConfig::confirmed());
+    let client = RpcClient::new_with_commitment(json_rpc_url, CommitmentConfig::confirmed());
 
     info!("Targeting {}", entrypoint_addr);
 
@@ -526,6 +529,33 @@ fn main() {
     let matches = App::new(crate_name!())
         .about(crate_description!())
         .version(solana_version::version!())
+        .arg({
+            let arg = Arg::with_name("config_file")
+                .short("C")
+                .long("config")
+                .value_name("FILEPATH")
+                .takes_value(true)
+                .global(true)
+                .help("Configuration file to use");
+            if let Some(ref config_file) = *CONFIG_FILE {
+                arg.default_value(config_file)
+            } else {
+                arg
+            }
+        })
+        .arg(
+            Arg::with_name("json_rpc_url")
+                .short("u")
+                .long("url")
+                .value_name("URL_OR_MONIKER")
+                .takes_value(true)
+                .global(true)
+                .validator(is_url_or_moniker)
+                .help(
+                    "URL for Solana's JSON RPC or moniker (or their first letter): \
+                       [mainnet-beta, testnet, devnet, localhost]",
+                ),
+        )
         .arg(
             Arg::with_name("entrypoint")
                 .long("entrypoint")
@@ -683,7 +713,18 @@ fn main() {
         entrypoint_addr
     };
 
+    let config = if let Some(config_file) = matches.value_of("config_file") {
+        solana_cli_config::Config::load(config_file).unwrap_or_default()
+    } else {
+        solana_cli_config::Config::default()
+    };
+    let (_, json_rpc_url) = ConfigInput::compute_json_rpc_url_setting(
+        matches.value_of("json_rpc_url").unwrap_or(""),
+        &config.json_rpc_url,
+    );
+
     run_accounts_bench(
+        json_rpc_url,
         rpc_addr,
         faucet_addr,
         &payer_keypair_refs,
@@ -740,6 +781,7 @@ pub mod test {
         let num_instructions = 2;
         let mut start = Measure::start("total accounts run");
         run_accounts_bench(
+            "http://127.0.0.1:8899".to_string(),
             cluster.entry_point_info.rpc().unwrap(),
             faucet_addr,
             &[&cluster.funding_keypair],
@@ -837,6 +879,7 @@ pub mod test {
         let keypair1 = Keypair::new();
         let keypair2 = Keypair::new();
         run_accounts_bench(
+            test_validator.rpc_url(),
             test_validator
                 .rpc_url()
                 .replace("http://", "")
