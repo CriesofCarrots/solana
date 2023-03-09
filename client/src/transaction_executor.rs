@@ -31,13 +31,29 @@ pub struct TransactionExecutor {
 }
 
 impl TransactionExecutor {
-    pub fn new(entrypoint_addr: SocketAddr) -> Self {
+    // pub fn new(entrypoint_addr: SocketAddr) -> Self {
+    //     let sigs = Arc::new(RwLock::new(Vec::new()));
+    //     let cleared = Arc::new(RwLock::new(Vec::new()));
+    //     let exit = Arc::new(AtomicBool::new(false));
+    //     let sig_clear_t = Self::start_sig_clear_thread(&exit, &sigs, &cleared, entrypoint_addr);
+    //     let client =
+    //         RpcClient::new_socket_with_commitment(entrypoint_addr, CommitmentConfig::confirmed());
+    //     Self {
+    //         sigs,
+    //         cleared,
+    //         sig_clear_t,
+    //         exit,
+    //         counter: AtomicU64::new(0),
+    //         client,
+    //     }
+    // }
+    pub fn new_with_url(json_rpc_url: String) -> Self {
         let sigs = Arc::new(RwLock::new(Vec::new()));
         let cleared = Arc::new(RwLock::new(Vec::new()));
         let exit = Arc::new(AtomicBool::new(false));
-        let sig_clear_t = Self::start_sig_clear_thread(&exit, &sigs, &cleared, entrypoint_addr);
-        let client =
-            RpcClient::new_socket_with_commitment(entrypoint_addr, CommitmentConfig::confirmed());
+        let sig_clear_t =
+            Self::start_sig_clear_thread(&exit, &sigs, &cleared, json_rpc_url.clone());
+        let client = RpcClient::new_with_commitment(json_rpc_url, CommitmentConfig::confirmed());
         Self {
             sigs,
             cleared,
@@ -85,7 +101,7 @@ impl TransactionExecutor {
         exit: &Arc<AtomicBool>,
         sigs: &Arc<RwLock<PendingQueue>>,
         cleared: &Arc<RwLock<Vec<u64>>>,
-        entrypoint_addr: SocketAddr,
+        json_rpc_url: String,
     ) -> JoinHandle<()> {
         let sigs = sigs.clone();
         let exit = exit.clone();
@@ -93,10 +109,8 @@ impl TransactionExecutor {
         Builder::new()
             .name("solSigClear".to_string())
             .spawn(move || {
-                let client = RpcClient::new_socket_with_commitment(
-                    entrypoint_addr,
-                    CommitmentConfig::confirmed(),
-                );
+                let client =
+                    RpcClient::new_with_commitment(json_rpc_url, CommitmentConfig::confirmed());
                 let mut success = 0;
                 let mut error_count = 0;
                 let mut timed_out = 0;

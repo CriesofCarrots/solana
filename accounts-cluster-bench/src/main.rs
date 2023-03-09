@@ -273,9 +273,10 @@ fn run_accounts_bench(
     assert!(num_instructions > 0);
     // let client =
     //     RpcClient::new_socket_with_commitment(entrypoint_addr, CommitmentConfig::confirmed());
-    let client = RpcClient::new_with_commitment(json_rpc_url, CommitmentConfig::confirmed());
+    let client =
+        RpcClient::new_with_commitment(json_rpc_url.clone(), CommitmentConfig::confirmed());
 
-    info!("Targeting {}", entrypoint_addr);
+    info!("Targeting {}", json_rpc_url);
 
     let mut latest_blockhash = Instant::now();
     let mut last_log = Instant::now();
@@ -306,7 +307,7 @@ fn run_accounts_bench(
 
     info!("Starting balance(s): {:?}", balances);
 
-    let executor = TransactionExecutor::new(entrypoint_addr);
+    let executor = TransactionExecutor::new_with_url(json_rpc_url.clone());
 
     // Create and close messages both require 2 signatures, fake a 2 signature message to calculate fees
     let mut message = Message::new(
@@ -448,7 +449,7 @@ fn run_accounts_bench(
     executor.close();
 
     if reclaim_accounts {
-        let executor = TransactionExecutor::new(entrypoint_addr);
+        let executor = TransactionExecutor::new_with_url(json_rpc_url);
         loop {
             let max_closed_seed = seed_tracker.max_closed.load(Ordering::Relaxed);
             let max_created_seed = seed_tracker.max_created.load(Ordering::Relaxed);
