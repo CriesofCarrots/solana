@@ -101,9 +101,9 @@ fn full_battery_tests(
 
     let nonce_authority = Keypair::new();
     let optional_authority = if use_nonce_authority {
-        Some(nonce_authority.pubkey())
+        nonce_authority.pubkey()
     } else {
-        None
+        config_payer.signers[0].pubkey()
     };
 
     // Create nonce account
@@ -316,7 +316,7 @@ fn test_create_account_with_seed() {
     creator_config.command = CliCommand::CreateNonceAccount {
         nonce_account: 0,
         seed: Some(seed),
-        nonce_authority: Some(authority_pubkey),
+        nonce_authority: authority_pubkey,
         memo: None,
         amount: SpendAmount::Some(sol_to_lamports(241.0)),
         compute_unit_price: None,

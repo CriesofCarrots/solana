@@ -249,6 +249,7 @@ pub fn parse_nonce_create_account(
         wallet_manager,
     )?;
     let compute_unit_price = value_of(matches, COMPUTE_UNIT_PRICE_ARG.name);
+    let nonce_authority = nonce_authority.unwrap_or_else(|| signer_info.signers[0].pubkey());
 
     Ok(CliCommandInfo {
         command: CliCommand::CreateNonceAccount {
@@ -453,7 +454,7 @@ pub fn process_create_nonce_account(
     config: &CliConfig,
     nonce_account: SignerIndex,
     seed: Option<String>,
-    nonce_authority: Option<Pubkey>,
+    nonce_authority: Pubkey,
     memo: Option<&String>,
     amount: SpendAmount,
     compute_unit_price: Option<&u64>,
@@ -469,8 +470,6 @@ pub fn process_create_nonce_account(
         (&config.signers[0].pubkey(), "cli keypair".to_string()),
         (&nonce_account_address, "nonce_account".to_string()),
     )?;
-
-    let nonce_authority = nonce_authority.unwrap_or_else(|| config.signers[0].pubkey());
 
     let build_message = |lamports| {
         let ixs = if let Some(seed) = seed.clone() {
@@ -851,7 +850,7 @@ mod tests {
                 command: CliCommand::CreateNonceAccount {
                     nonce_account: 1,
                     seed: None,
-                    nonce_authority: None,
+                    nonce_authority: default_keypair.pubkey(),
                     memo: None,
                     amount: SpendAmount::Some(50_000_000_000),
                     compute_unit_price: None,
@@ -878,7 +877,7 @@ mod tests {
                 command: CliCommand::CreateNonceAccount {
                     nonce_account: 1,
                     seed: None,
-                    nonce_authority: Some(nonce_authority_keypair.pubkey()),
+                    nonce_authority: nonce_authority_keypair.pubkey(),
                     memo: None,
                     amount: SpendAmount::Some(50_000_000_000),
                     compute_unit_price: None,

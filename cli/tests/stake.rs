@@ -783,7 +783,7 @@ fn test_nonced_stake_delegation_and_deactivation() {
     config.command = CliCommand::CreateNonceAccount {
         nonce_account: 1,
         seed: None,
-        nonce_authority: Some(config.signers[0].pubkey()),
+        nonce_authority: config.signers[0].pubkey(),
         memo: None,
         amount: SpendAmount::Some(minimum_nonce_balance),
         compute_unit_price: None,
@@ -1090,7 +1090,7 @@ fn test_stake_authorize() {
     config.command = CliCommand::CreateNonceAccount {
         nonce_account: 1,
         seed: None,
-        nonce_authority: Some(offline_authority_pubkey),
+        nonce_authority: offline_authority_pubkey,
         memo: None,
         amount: SpendAmount::Some(minimum_nonce_balance),
         compute_unit_price: None,
@@ -1446,7 +1446,7 @@ fn test_stake_split() {
     config.command = CliCommand::CreateNonceAccount {
         nonce_account: 1,
         seed: None,
-        nonce_authority: Some(offline_pubkey),
+        nonce_authority: offline_pubkey,
         memo: None,
         amount: SpendAmount::Some(minimum_nonce_balance),
         compute_unit_price: None,
@@ -1723,7 +1723,7 @@ fn test_stake_set_lockup() {
     config.command = CliCommand::CreateNonceAccount {
         nonce_account: 1,
         seed: None,
-        nonce_authority: Some(offline_pubkey),
+        nonce_authority: offline_pubkey,
         memo: None,
         amount: SpendAmount::Some(minimum_nonce_balance),
         compute_unit_price: None,
@@ -1857,7 +1857,7 @@ fn test_offline_nonced_create_stake_account_and_withdraw() {
     config.command = CliCommand::CreateNonceAccount {
         nonce_account: 1,
         seed: None,
-        nonce_authority: Some(offline_pubkey),
+        nonce_authority: offline_pubkey,
         memo: None,
         amount: SpendAmount::Some(minimum_nonce_balance),
         compute_unit_price: None,

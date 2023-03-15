@@ -136,7 +136,7 @@ pub enum CliCommand {
     CreateNonceAccount {
         nonce_account: SignerIndex,
         seed: Option<String>,
-        nonce_authority: Option<Pubkey>,
+        nonce_authority: Pubkey,
         memo: Option<String>,
         amount: SpendAmount,
         compute_unit_price: Option<u64>,

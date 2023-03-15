@@ -179,7 +179,7 @@ fn test_transfer() {
     config.command = CliCommand::CreateNonceAccount {
         nonce_account: 1,
         seed: None,
-        nonce_authority: None,
+        nonce_authority: default_signer.pubkey(),
         memo: None,
         amount: SpendAmount::Some(minimum_nonce_balance),
         compute_unit_price: None,
