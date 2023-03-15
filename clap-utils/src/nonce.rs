@@ -66,7 +66,7 @@ impl NonceSignerInfo {
     pub fn new(
         nonce_account: Option<Pubkey>,
         nonce_authority: Option<Pubkey>,
-        signer_info: CliSignerInfo,
+        signer_info: &CliSignerInfo,
     ) -> Option<Self> {
         nonce_account
             .zip(nonce_authority)
