@@ -202,7 +202,7 @@ pub fn parse_authorize_nonce_account(
     default_signer: &DefaultSigner,
     wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
 ) -> Result<CliCommandInfo, CliError> {
-    let nonce_account = pubkey_of_signer(matches, "nonce_account_pubkey", wallet_manager)?.unwrap();
+    let nonce_account = pubkey_of_signer(matches, "nonce_account_pubkey", wallet_manager)?;
     let new_authority = pubkey_of_signer(matches, "new_authority", wallet_manager)?.unwrap();
     let memo = matches.value_of(MEMO_ARG.name).map(String::from);
     let (nonce_authority, nonce_authority_pubkey) =
@@ -216,10 +216,12 @@ pub fn parse_authorize_nonce_account(
     )?;
     let compute_unit_price = value_of(matches, COMPUTE_UNIT_PRICE_ARG.name);
 
+    let nonce_info =
+        NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info).unwrap();
+
     Ok(CliCommandInfo {
         command: CliCommand::AuthorizeNonceAccount {
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             new_authority,
             compute_unit_price,
@@ -279,7 +281,7 @@ pub fn parse_new_nonce(
     default_signer: &DefaultSigner,
     wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
 ) -> Result<CliCommandInfo, CliError> {
-    let nonce_account = pubkey_of_signer(matches, "nonce_account_pubkey", wallet_manager)?.unwrap();
+    let nonce_account = pubkey_of_signer(matches, "nonce_account_pubkey", wallet_manager)?;
     let memo = matches.value_of(MEMO_ARG.name).map(String::from);
     let (nonce_authority, nonce_authority_pubkey) =
         signer_of(matches, NONCE_AUTHORITY_ARG.name, wallet_manager)?;
@@ -292,10 +294,12 @@ pub fn parse_new_nonce(
     )?;
     let compute_unit_price = value_of(matches, COMPUTE_UNIT_PRICE_ARG.name);
 
+    let nonce_info =
+        NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info).unwrap();
+
     Ok(CliCommandInfo {
         command: CliCommand::NewNonce {
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             compute_unit_price,
         },
@@ -325,7 +329,7 @@ pub fn parse_withdraw_from_nonce_account(
     default_signer: &DefaultSigner,
     wallet_manager: &mut Option<Arc<RemoteWalletManager>>,
 ) -> Result<CliCommandInfo, CliError> {
-    let nonce_account = pubkey_of_signer(matches, "nonce_account_pubkey", wallet_manager)?.unwrap();
+    let nonce_account = pubkey_of_signer(matches, "nonce_account_pubkey", wallet_manager)?;
     let destination_account_pubkey =
         pubkey_of_signer(matches, "destination_account_pubkey", wallet_manager)?.unwrap();
     let lamports = lamports_of_sol(matches, "amount").unwrap();
@@ -340,11 +344,12 @@ pub fn parse_withdraw_from_nonce_account(
         wallet_manager,
     )?;
     let compute_unit_price = value_of(matches, COMPUTE_UNIT_PRICE_ARG.name);
+    let nonce_info =
+        NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info).unwrap();
 
     Ok(CliCommandInfo {
         command: CliCommand::WithdrawFromNonceAccount {
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             destination_account_pubkey,
             lamports,
@@ -401,17 +406,16 @@ pub fn check_nonce_account(
 pub fn process_authorize_nonce_account(
     rpc_client: &RpcClient,
     config: &CliConfig,
-    nonce_account: &Pubkey,
-    nonce_authority: SignerIndex,
+    nonce_info: &NonceSignerInfo,
     memo: Option<&String>,
     new_authority: &Pubkey,
     compute_unit_price: Option<&u64>,
 ) -> ProcessResult {
     let latest_blockhash = rpc_client.get_latest_blockhash()?;
 
-    let nonce_authority = config.signers[nonce_authority];
+    let nonce_authority = config.signers[nonce_info.signer_index];
     let ixs = vec![authorize_nonce_account(
-        nonce_account,
+        &nonce_info.account,
         &nonce_authority.pubkey(),
         new_authority,
     )]
@@ -577,26 +581,26 @@ pub fn process_get_nonce(
 pub fn process_new_nonce(
     rpc_client: &RpcClient,
     config: &CliConfig,
-    nonce_account: &Pubkey,
-    nonce_authority: SignerIndex,
+    nonce_info: &NonceSignerInfo,
     memo: Option<&String>,
     compute_unit_price: Option<&u64>,
 ) -> ProcessResult {
     check_unique_pubkeys(
         (&config.signers[0].pubkey(), "cli keypair".to_string()),
-        (nonce_account, "nonce_account_pubkey".to_string()),
+        (&nonce_info.account, "nonce_account_pubkey".to_string()),
     )?;
 
-    if let Err(err) = rpc_client.get_account(nonce_account) {
+    if let Err(err) = rpc_client.get_account(&nonce_info.account) {
         return Err(CliError::BadParameter(format!(
-            "Unable to advance nonce account {nonce_account}. error: {err}"
+            "Unable to advance nonce account {0}. error: {err}",
+            nonce_info.account
         ))
         .into());
     }
 
-    let nonce_authority = config.signers[nonce_authority];
+    let nonce_authority = config.signers[nonce_info.signer_index];
     let ixs = vec![advance_nonce_account(
-        nonce_account,
+        &nonce_info.account,
         &nonce_authority.pubkey(),
     )]
     .with_memo(memo)
@@ -661,8 +665,7 @@ pub fn process_show_nonce_account(
 pub fn process_withdraw_from_nonce_account(
     rpc_client: &RpcClient,
     config: &CliConfig,
-    nonce_account: &Pubkey,
-    nonce_authority: SignerIndex,
+    nonce_info: &NonceSignerInfo,
     memo: Option<&String>,
     destination_account_pubkey: &Pubkey,
     lamports: u64,
@@ -670,9 +673,9 @@ pub fn process_withdraw_from_nonce_account(
 ) -> ProcessResult {
     let latest_blockhash = rpc_client.get_latest_blockhash()?;
 
-    let nonce_authority = config.signers[nonce_authority];
+    let nonce_authority = config.signers[nonce_info.signer_index];
     let ixs = vec![withdraw_nonce_account(
-        nonce_account,
+        &nonce_info.account,
         &nonce_authority.pubkey(),
         destination_account_pubkey,
         lamports,
@@ -795,8 +798,10 @@ mod tests {
             parse_command(&test_authorize_nonce_account, &default_signer, &mut None).unwrap(),
             CliCommandInfo {
                 command: CliCommand::AuthorizeNonceAccount {
-                    nonce_account: nonce_account_pubkey,
-                    nonce_authority: 0,
+                    nonce_info: NonceSignerInfo {
+                        account: nonce_account_pubkey,
+                        signer_index: 0,
+                    },
                     memo: None,
                     new_authority: Pubkey::default(),
                     compute_unit_price: None,
@@ -818,8 +823,10 @@ mod tests {
             parse_command(&test_authorize_nonce_account, &default_signer, &mut None).unwrap(),
             CliCommandInfo {
                 command: CliCommand::AuthorizeNonceAccount {
-                    nonce_account: read_keypair_file(&keypair_file).unwrap().pubkey(),
-                    nonce_authority: 1,
+                    nonce_info: NonceSignerInfo {
+                        account: read_keypair_file(&keypair_file).unwrap().pubkey(),
+                        signer_index: 1,
+                    },
                     memo: None,
                     new_authority: Pubkey::default(),
                     compute_unit_price: None,
@@ -907,8 +914,10 @@ mod tests {
             parse_command(&test_new_nonce, &default_signer, &mut None).unwrap(),
             CliCommandInfo {
                 command: CliCommand::NewNonce {
-                    nonce_account: nonce_account.pubkey(),
-                    nonce_authority: 0,
+                    nonce_info: NonceSignerInfo {
+                        account: nonce_account.pubkey(),
+                        signer_index: 0,
+                    },
                     memo: None,
                     compute_unit_price: None,
                 },
@@ -929,8 +938,10 @@ mod tests {
             parse_command(&test_new_nonce, &default_signer, &mut None).unwrap(),
             CliCommandInfo {
                 command: CliCommand::NewNonce {
-                    nonce_account: nonce_account.pubkey(),
-                    nonce_authority: 1,
+                    nonce_info: NonceSignerInfo {
+                        account: nonce_account.pubkey(),
+                        signer_index: 1,
+                    },
                     memo: None,
                     compute_unit_price: None,
                 },
@@ -975,8 +986,10 @@ mod tests {
             .unwrap(),
             CliCommandInfo {
                 command: CliCommand::WithdrawFromNonceAccount {
-                    nonce_account: read_keypair_file(&keypair_file).unwrap().pubkey(),
-                    nonce_authority: 0,
+                    nonce_info: NonceSignerInfo {
+                        account: read_keypair_file(&keypair_file).unwrap().pubkey(),
+                        signer_index: 0,
+                    },
                     memo: None,
                     destination_account_pubkey: nonce_account_pubkey,
                     lamports: 42_000_000_000,
@@ -1005,8 +1018,10 @@ mod tests {
             .unwrap(),
             CliCommandInfo {
                 command: CliCommand::WithdrawFromNonceAccount {
-                    nonce_account: read_keypair_file(&keypair_file).unwrap().pubkey(),
-                    nonce_authority: 1,
+                    nonce_info: NonceSignerInfo {
+                        account: read_keypair_file(&keypair_file).unwrap().pubkey(),
+                        signer_index: 1,
+                    },
                     memo: None,
                     destination_account_pubkey: nonce_account_pubkey,
                     lamports: 42_000_000_000,
@@ -1052,8 +1067,10 @@ mod tests {
             parse_command(&test_authorize_nonce_account, &default_signer, &mut None).unwrap(),
             CliCommandInfo {
                 command: CliCommand::AuthorizeNonceAccount {
-                    nonce_account: read_keypair_file(&keypair_file).unwrap().pubkey(),
-                    nonce_authority: 1,
+                    nonce_info: NonceSignerInfo {
+                        account: read_keypair_file(&keypair_file).unwrap().pubkey(),
+                        signer_index: 1,
+                    },
                     memo: None,
                     new_authority: Pubkey::default(),
                     compute_unit_price: Some(99),

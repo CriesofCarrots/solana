@@ -245,8 +245,10 @@ fn test_transfer() {
     // Assign nonce authority to offline
     config.signers = vec![&default_signer];
     config.command = CliCommand::AuthorizeNonceAccount {
-        nonce_account: nonce_account.pubkey(),
-        nonce_authority: 0,
+        nonce_info: NonceSignerInfo {
+            account: nonce_account.pubkey(),
+            signer_index: 0,
+        },
         memo: None,
         new_authority: offline_pubkey,
         compute_unit_price: None,

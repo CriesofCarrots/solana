@@ -149,8 +149,10 @@ fn full_battery_tests(
     // New nonce
     config_payer.signers = authorized_signers.clone();
     config_payer.command = CliCommand::NewNonce {
-        nonce_account,
-        nonce_authority: index,
+        nonce_info: NonceSignerInfo {
+            account: nonce_account,
+            signer_index: index,
+        },
         memo: None,
         compute_unit_price: None,
     };
@@ -168,8 +170,10 @@ fn full_battery_tests(
     let payee_pubkey = solana_sdk::pubkey::new_rand();
     config_payer.signers = authorized_signers;
     config_payer.command = CliCommand::WithdrawFromNonceAccount {
-        nonce_account,
-        nonce_authority: index,
+        nonce_info: NonceSignerInfo {
+            account: nonce_account,
+            signer_index: index,
+        },
         memo: None,
         destination_account_pubkey: payee_pubkey,
         lamports: sol_to_lamports(100.0),
@@ -194,8 +198,10 @@ fn full_battery_tests(
     // Set new authority
     let new_authority = Keypair::new();
     config_payer.command = CliCommand::AuthorizeNonceAccount {
-        nonce_account,
-        nonce_authority: index,
+        nonce_info: NonceSignerInfo {
+            account: nonce_account,
+            signer_index: index,
+        },
         memo: None,
         new_authority: new_authority.pubkey(),
         compute_unit_price: None,
@@ -204,8 +210,10 @@ fn full_battery_tests(
 
     // Old authority fails now
     config_payer.command = CliCommand::NewNonce {
-        nonce_account,
-        nonce_authority: index,
+        nonce_info: NonceSignerInfo {
+            account: nonce_account,
+            signer_index: index,
+        },
         memo: None,
         compute_unit_price: None,
     };
@@ -214,8 +222,10 @@ fn full_battery_tests(
     // New authority can advance nonce
     config_payer.signers = vec![&payer, &new_authority];
     config_payer.command = CliCommand::NewNonce {
-        nonce_account,
-        nonce_authority: 1,
+        nonce_info: NonceSignerInfo {
+            account: nonce_account,
+            signer_index: 1,
+        },
         memo: None,
         compute_unit_price: None,
     };
@@ -223,8 +233,10 @@ fn full_battery_tests(
 
     // New authority can withdraw from nonce account
     config_payer.command = CliCommand::WithdrawFromNonceAccount {
-        nonce_account,
-        nonce_authority: 1,
+        nonce_info: NonceSignerInfo {
+            account: nonce_account,
+            signer_index: 1,
+        },
         memo: None,
         destination_account_pubkey: payee_pubkey,
         lamports: sol_to_lamports(100.0),
