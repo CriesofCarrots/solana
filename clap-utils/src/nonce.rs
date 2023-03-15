@@ -59,7 +59,7 @@ impl NonceArgs for App<'_, '_> {
 
 #[derive(Debug, PartialEq)]
 pub struct NonceSignerInfo {
-    pub nonce_account: Pubkey,
+    pub account: Pubkey,
     pub signer_index: SignerIndex,
 }
 
@@ -69,15 +69,12 @@ impl NonceSignerInfo {
         nonce_authority: Option<Pubkey>,
         signer_info: &CliSignerInfo,
     ) -> Option<Self> {
-        nonce_account
-            .zip(nonce_authority)
-            .and_then(|(nonce_account, nonce_authority)| {
-                signer_info
-                    .index_of(Some(nonce_authority))
-                    .map(|signer_index| Self {
-                        nonce_account,
-                        signer_index,
-                    })
-            })
+        nonce_account.map(|nonce_account| {
+            let signer_index = signer_info.index_of(nonce_authority).unwrap();
+            Self {
+                account: nonce_account,
+                signer_index,
+            }
+        })
     }
 }
