@@ -59,8 +59,8 @@ impl NonceArgs for App<'_, '_> {
 
 #[derive(Debug, PartialEq)]
 pub struct NonceSignerInfo {
-    nonce_account: Pubkey,
-    signer_index: SignerIndex,
+    pub nonce_account: Pubkey,
+    pub signer_index: SignerIndex,
 }
 
 impl NonceSignerInfo {
