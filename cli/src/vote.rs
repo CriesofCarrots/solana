@@ -465,6 +465,7 @@ pub fn parse_create_vote_account(
     }
     let signer_info =
         default_signer.generate_unique_signers(bulk_signers, matches, wallet_manager)?;
+    let nonce_info = NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info);
 
     Ok(CliCommandInfo {
         command: CliCommand::CreateVoteAccount {
@@ -477,8 +478,7 @@ pub fn parse_create_vote_account(
             sign_only,
             dump_transaction_message,
             blockhash_query,
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             fee_payer: signer_info.index_of(fee_payer_pubkey).unwrap(),
             compute_unit_price,
@@ -523,6 +523,7 @@ pub fn parse_vote_authorize(
     }
     let signer_info =
         default_signer.generate_unique_signers(bulk_signers, matches, wallet_manager)?;
+    let nonce_info = NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info);
 
     Ok(CliCommandInfo {
         command: CliCommand::VoteAuthorize {
@@ -532,8 +533,7 @@ pub fn parse_vote_authorize(
             sign_only,
             dump_transaction_message,
             blockhash_query,
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             fee_payer: signer_info.index_of(fee_payer_pubkey).unwrap(),
             authorized: signer_info.index_of(authorized_pubkey).unwrap(),
@@ -576,6 +576,7 @@ pub fn parse_vote_update_validator(
     }
     let signer_info =
         default_signer.generate_unique_signers(bulk_signers, matches, wallet_manager)?;
+    let nonce_info = NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info);
 
     Ok(CliCommandInfo {
         command: CliCommand::VoteUpdateValidator {
@@ -585,8 +586,7 @@ pub fn parse_vote_update_validator(
             sign_only,
             dump_transaction_message,
             blockhash_query,
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             fee_payer: signer_info.index_of(fee_payer_pubkey).unwrap(),
             compute_unit_price,
@@ -622,6 +622,7 @@ pub fn parse_vote_update_commission(
     }
     let signer_info =
         default_signer.generate_unique_signers(bulk_signers, matches, wallet_manager)?;
+    let nonce_info = NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info);
 
     Ok(CliCommandInfo {
         command: CliCommand::VoteUpdateCommission {
@@ -631,8 +632,7 @@ pub fn parse_vote_update_commission(
             sign_only,
             dump_transaction_message,
             blockhash_query,
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             fee_payer: signer_info.index_of(fee_payer_pubkey).unwrap(),
             compute_unit_price,
@@ -699,6 +699,7 @@ pub fn parse_withdraw_from_vote_account(
     }
     let signer_info =
         default_signer.generate_unique_signers(bulk_signers, matches, wallet_manager)?;
+    let nonce_info = NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info);
 
     Ok(CliCommandInfo {
         command: CliCommand::WithdrawFromVoteAccount {
@@ -709,8 +710,7 @@ pub fn parse_withdraw_from_vote_account(
             sign_only,
             dump_transaction_message,
             blockhash_query,
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             fee_payer: signer_info.index_of(fee_payer_pubkey).unwrap(),
             compute_unit_price,
@@ -767,8 +767,7 @@ pub fn process_create_vote_account(
     sign_only: bool,
     dump_transaction_message: bool,
     blockhash_query: &BlockhashQuery,
-    nonce_account: Option<&Pubkey>,
-    nonce_authority: SignerIndex,
+    nonce_info: &Option<NonceSignerInfo>,
     memo: Option<&String>,
     fee_payer: SignerIndex,
     compute_unit_price: Option<&u64>,
@@ -798,7 +797,6 @@ pub fn process_create_vote_account(
     let amount = SpendAmount::Some(required_balance);
 
     let fee_payer = config.signers[fee_payer];
-    let nonce_authority = config.signers[nonce_authority];
 
     let build_message = |lamports| {
         let vote_init = VoteInit {
@@ -829,12 +827,13 @@ pub fn process_create_vote_account(
             .with_memo(memo)
             .with_compute_unit_price(compute_unit_price)
         };
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             Message::new_with_nonce(
                 ixs,
                 Some(&fee_payer.pubkey()),
-                nonce_account,
-                &nonce_authority.pubkey(),
+                &nonce_info.account,
+                &nonce_authority_pubkey,
             )
         } else {
             Message::new(&ixs, Some(&fee_payer.pubkey()))
@@ -870,13 +869,14 @@ pub fn process_create_vote_account(
             }
         }
 
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             let nonce_account = solana_rpc_client_nonce_utils::get_account_with_commitment(
                 rpc_client,
-                nonce_account,
+                &nonce_info.account,
                 config.commitment,
             )?;
-            check_nonce_account(&nonce_account, &nonce_authority.pubkey(), &recent_blockhash)?;
+            check_nonce_account(&nonce_account, &nonce_authority_pubkey, &recent_blockhash)?;
         }
     }
 
@@ -909,8 +909,7 @@ pub fn process_vote_authorize(
     sign_only: bool,
     dump_transaction_message: bool,
     blockhash_query: &BlockhashQuery,
-    nonce_account: Option<Pubkey>,
-    nonce_authority: SignerIndex,
+    nonce_info: &Option<NonceSignerInfo>,
     memo: Option<&String>,
     fee_payer: SignerIndex,
     compute_unit_price: Option<&u64>,
@@ -980,15 +979,15 @@ pub fn process_vote_authorize(
 
     let recent_blockhash = blockhash_query.get_blockhash(rpc_client, config.commitment)?;
 
-    let nonce_authority = config.signers[nonce_authority];
     let fee_payer = config.signers[fee_payer];
 
-    let message = if let Some(nonce_account) = &nonce_account {
+    let message = if let Some(nonce_info) = &nonce_info {
+        let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
         Message::new_with_nonce(
             ixs,
             Some(&fee_payer.pubkey()),
-            nonce_account,
-            &nonce_authority.pubkey(),
+            &nonce_info.account,
+            &nonce_authority_pubkey,
         )
     } else {
         Message::new(&ixs, Some(&fee_payer.pubkey()))
@@ -1006,13 +1005,14 @@ pub fn process_vote_authorize(
         )
     } else {
         tx.try_sign(&config.signers, recent_blockhash)?;
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             let nonce_account = solana_rpc_client_nonce_utils::get_account_with_commitment(
                 rpc_client,
-                nonce_account,
+                &nonce_info.account,
                 config.commitment,
             )?;
-            check_nonce_account(&nonce_account, &nonce_authority.pubkey(), &recent_blockhash)?;
+            check_nonce_account(&nonce_account, &nonce_authority_pubkey, &recent_blockhash)?;
         }
         check_account_for_fee_with_commitment(
             rpc_client,
@@ -1035,8 +1035,7 @@ pub fn process_vote_update_validator(
     sign_only: bool,
     dump_transaction_message: bool,
     blockhash_query: &BlockhashQuery,
-    nonce_account: Option<Pubkey>,
-    nonce_authority: SignerIndex,
+    nonce_info: &Option<NonceSignerInfo>,
     memo: Option<&String>,
     fee_payer: SignerIndex,
     compute_unit_price: Option<&u64>,
@@ -1056,15 +1055,15 @@ pub fn process_vote_update_validator(
     )]
     .with_memo(memo)
     .with_compute_unit_price(compute_unit_price);
-    let nonce_authority = config.signers[nonce_authority];
     let fee_payer = config.signers[fee_payer];
 
-    let message = if let Some(nonce_account) = &nonce_account {
+    let message = if let Some(nonce_info) = &nonce_info {
+        let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
         Message::new_with_nonce(
             ixs,
             Some(&fee_payer.pubkey()),
-            nonce_account,
-            &nonce_authority.pubkey(),
+            &nonce_info.account,
+            &nonce_authority_pubkey,
         )
     } else {
         Message::new(&ixs, Some(&fee_payer.pubkey()))
@@ -1082,13 +1081,14 @@ pub fn process_vote_update_validator(
         )
     } else {
         tx.try_sign(&config.signers, recent_blockhash)?;
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             let nonce_account = solana_rpc_client_nonce_utils::get_account_with_commitment(
                 rpc_client,
-                nonce_account,
+                &nonce_info.account,
                 config.commitment,
             )?;
-            check_nonce_account(&nonce_account, &nonce_authority.pubkey(), &recent_blockhash)?;
+            check_nonce_account(&nonce_account, &nonce_authority_pubkey, &recent_blockhash)?;
         }
         check_account_for_fee_with_commitment(
             rpc_client,
@@ -1111,8 +1111,7 @@ pub fn process_vote_update_commission(
     sign_only: bool,
     dump_transaction_message: bool,
     blockhash_query: &BlockhashQuery,
-    nonce_account: Option<Pubkey>,
-    nonce_authority: SignerIndex,
+    nonce_info: &Option<NonceSignerInfo>,
     memo: Option<&String>,
     fee_payer: SignerIndex,
     compute_unit_price: Option<&u64>,
@@ -1126,15 +1125,15 @@ pub fn process_vote_update_commission(
     )]
     .with_memo(memo)
     .with_compute_unit_price(compute_unit_price);
-    let nonce_authority = config.signers[nonce_authority];
     let fee_payer = config.signers[fee_payer];
 
-    let message = if let Some(nonce_account) = &nonce_account {
+    let message = if let Some(nonce_info) = &nonce_info {
+        let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
         Message::new_with_nonce(
             ixs,
             Some(&fee_payer.pubkey()),
-            nonce_account,
-            &nonce_authority.pubkey(),
+            &nonce_info.account,
+            &nonce_authority_pubkey,
         )
     } else {
         Message::new(&ixs, Some(&fee_payer.pubkey()))
@@ -1151,13 +1150,14 @@ pub fn process_vote_update_commission(
         )
     } else {
         tx.try_sign(&config.signers, recent_blockhash)?;
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             let nonce_account = solana_rpc_client_nonce_utils::get_account_with_commitment(
                 rpc_client,
-                nonce_account,
+                &nonce_info.account,
                 config.commitment,
             )?;
-            check_nonce_account(&nonce_account, &nonce_authority.pubkey(), &recent_blockhash)?;
+            check_nonce_account(&nonce_account, &nonce_authority_pubkey, &recent_blockhash)?;
         }
         check_account_for_fee_with_commitment(
             rpc_client,
@@ -1268,8 +1268,7 @@ pub fn process_withdraw_from_vote_account(
     sign_only: bool,
     dump_transaction_message: bool,
     blockhash_query: &BlockhashQuery,
-    nonce_account: Option<&Pubkey>,
-    nonce_authority: SignerIndex,
+    nonce_info: &Option<NonceSignerInfo>,
     memo: Option<&String>,
     fee_payer: SignerIndex,
     compute_unit_price: Option<&u64>,
@@ -1278,7 +1277,6 @@ pub fn process_withdraw_from_vote_account(
     let recent_blockhash = blockhash_query.get_blockhash(rpc_client, config.commitment)?;
 
     let fee_payer = config.signers[fee_payer];
-    let nonce_authority = config.signers[nonce_authority];
 
     let build_message = |lamports| {
         let ixs = vec![withdraw(
@@ -1290,12 +1288,13 @@ pub fn process_withdraw_from_vote_account(
         .with_memo(memo)
         .with_compute_unit_price(compute_unit_price);
 
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             Message::new_with_nonce(
                 ixs,
                 Some(&fee_payer.pubkey()),
-                nonce_account,
-                &nonce_authority.pubkey(),
+                &nonce_info.account,
+                &nonce_authority_pubkey,
             )
         } else {
             Message::new(&ixs, Some(&fee_payer.pubkey()))
@@ -1341,13 +1340,14 @@ pub fn process_withdraw_from_vote_account(
         )
     } else {
         tx.try_sign(&config.signers, recent_blockhash)?;
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             let nonce_account = solana_rpc_client_nonce_utils::get_account_with_commitment(
                 rpc_client,
-                nonce_account,
+                &nonce_info.account,
                 config.commitment,
             )?;
-            check_nonce_account(&nonce_account, &nonce_authority.pubkey(), &recent_blockhash)?;
+            check_nonce_account(&nonce_account, &nonce_authority_pubkey, &recent_blockhash)?;
         }
         check_account_for_fee_with_commitment(
             rpc_client,
@@ -1476,8 +1476,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     authorized: 0,
@@ -1509,8 +1508,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     authorized: 1,
@@ -1544,8 +1542,7 @@ mod tests {
                     sign_only: true,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::None(blockhash),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     authorized: 1,
@@ -1593,8 +1590,10 @@ mod tests {
                         blockhash_query::Source::NonceAccount(nonce_account),
                         blockhash
                     ),
-                    nonce_account: Some(nonce_account),
-                    nonce_authority: 0,
+                    nonce_info: Some(NonceSignerInfo {
+                        account: nonce_account,
+                        signer_index: 0,
+                    }),
                     memo: None,
                     fee_payer: 0,
                     authorized: 1,
@@ -1630,8 +1629,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     authorized: 0,
@@ -1662,8 +1660,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     authorized: 1,
@@ -1718,8 +1715,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -1752,8 +1748,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -1793,8 +1788,7 @@ mod tests {
                     sign_only: true,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::None(blockhash),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -1846,8 +1840,10 @@ mod tests {
                         blockhash_query::Source::NonceAccount(nonce_account),
                         blockhash
                     ),
-                    nonce_account: Some(nonce_account),
-                    nonce_authority: 3,
+                    nonce_info: Some(NonceSignerInfo {
+                        account: nonce_account,
+                        signer_index: 3,
+                    }),
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -1889,8 +1885,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -1928,8 +1923,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -1959,8 +1953,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -1990,8 +1983,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -2022,8 +2014,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -2051,8 +2042,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -2085,8 +2075,7 @@ mod tests {
                     sign_only: false,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::All(blockhash_query::Source::Cluster),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -2124,8 +2113,7 @@ mod tests {
                     sign_only: true,
                     dump_transaction_message: false,
                     blockhash_query: BlockhashQuery::None(blockhash),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
@@ -2165,8 +2153,7 @@ mod tests {
                         blockhash_query::Source::Cluster,
                         blockhash
                     ),
-                    nonce_account: None,
-                    nonce_authority: 0,
+                    nonce_info: None,
                     memo: None,
                     fee_payer: 0,
                     compute_unit_price: None,
