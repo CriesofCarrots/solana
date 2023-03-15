@@ -1,6 +1,12 @@
 use {
-    crate::{input_validators::*, offline::BLOCKHASH_ARG, ArgConstant},
+    crate::{
+        input_validators::*,
+        keypair::{CliSignerInfo, SignerIndex},
+        offline::BLOCKHASH_ARG,
+        ArgConstant,
+    },
     clap::{Arg, Command},
+    solana_sdk::pubkey::Pubkey,
 };
 
 pub const NONCE_ARG: ArgConstant<'static> = ArgConstant {
@@ -48,5 +54,29 @@ impl NonceArgs for Command<'_> {
                 .requires(NONCE_ARG.name)
                 .global(global),
         )
+    }
+}
+
+pub struct NonceSignerInfo {
+    nonce_account: Pubkey,
+    signer_index: SignerIndex,
+}
+
+impl NonceSignerInfo {
+    pub fn new(
+        nonce_account: Option<Pubkey>,
+        nonce_authority: Option<Pubkey>,
+        signer_info: CliSignerInfo,
+    ) -> Option<Self> {
+        nonce_account
+            .zip(nonce_authority)
+            .and_then(|(nonce_account, nonce_authority)| {
+                signer_info
+                    .index_of(Some(nonce_authority))
+                    .map(|signer_index| Self {
+                        nonce_account,
+                        signer_index,
+                    })
+            })
     }
 }
