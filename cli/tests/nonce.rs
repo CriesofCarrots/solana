@@ -1,5 +1,6 @@
 #![allow(clippy::integer_arithmetic)]
 use {
+    solana_clap_utils::nonce::NonceSignerInfo,
     solana_cli::{
         check_balance,
         cli::{process_command, request_and_confirm_airdrop, CliCommand, CliConfig},
@@ -348,8 +349,10 @@ fn test_create_account_with_seed() {
         allow_unfunded_recipient: true,
         no_wait: false,
         blockhash_query: BlockhashQuery::None(nonce_hash),
-        nonce_account: Some(nonce_address),
-        nonce_authority: 0,
+        nonce_info: Some(NonceSignerInfo {
+            account: nonce_address,
+            signer_index: 0,
+        }),
         memo: None,
         fee_payer: 0,
         derived_address_seed: None,
@@ -378,8 +381,10 @@ fn test_create_account_with_seed() {
             blockhash_query::Source::NonceAccount(nonce_address),
             sign_only.blockhash,
         ),
-        nonce_account: Some(nonce_address),
-        nonce_authority: 0,
+        nonce_info: Some(NonceSignerInfo {
+            account: nonce_address,
+            signer_index: 0,
+        }),
         memo: None,
         fee_payer: 0,
         derived_address_seed: None,

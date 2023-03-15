@@ -484,6 +484,8 @@ pub fn parse_transfer(
         default_signer.generate_unique_signers(bulk_signers, matches, wallet_manager)?;
     let compute_unit_price = value_of(matches, COMPUTE_UNIT_PRICE_ARG.name);
 
+    let nonce_info = NonceSignerInfo::new(nonce_account, nonce_authority_pubkey, &signer_info);
+
     let derived_address_seed = matches
         .value_of("derived_address_seed")
         .map(|s| s.to_string());
@@ -499,8 +501,7 @@ pub fn parse_transfer(
             allow_unfunded_recipient,
             no_wait,
             blockhash_query,
-            nonce_account,
-            nonce_authority: signer_info.index_of(nonce_authority_pubkey).unwrap(),
+            nonce_info,
             memo,
             fee_payer: signer_info.index_of(fee_payer_pubkey).unwrap(),
             from: signer_info.index_of(from_pubkey).unwrap(),
@@ -770,8 +771,7 @@ pub fn process_transfer(
     allow_unfunded_recipient: bool,
     no_wait: bool,
     blockhash_query: &BlockhashQuery,
-    nonce_account: Option<&Pubkey>,
-    nonce_authority: SignerIndex,
+    nonce_info: &Option<NonceSignerInfo>,
     memo: Option<&String>,
     fee_payer: SignerIndex,
     derived_address_seed: Option<String>,
@@ -797,7 +797,6 @@ pub fn process_transfer(
         }
     }
 
-    let nonce_authority = config.signers[nonce_authority];
     let fee_payer = config.signers[fee_payer];
 
     let derived_parts = derived_address_seed.zip(derived_address_program_id);
@@ -827,12 +826,13 @@ pub fn process_transfer(
                 .with_compute_unit_price(compute_unit_price)
         };
 
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             Message::new_with_nonce(
                 ixs,
                 Some(&fee_payer.pubkey()),
-                nonce_account,
-                &nonce_authority.pubkey(),
+                &nonce_info.account,
+                &nonce_authority_pubkey,
             )
         } else {
             Message::new(&ixs, Some(&fee_payer.pubkey()))
@@ -861,13 +861,14 @@ pub fn process_transfer(
             },
         )
     } else {
-        if let Some(nonce_account) = &nonce_account {
+        if let Some(nonce_info) = &nonce_info {
+            let nonce_authority_pubkey = config.signers[nonce_info.signer_index].pubkey();
             let nonce_account = solana_rpc_client_nonce_utils::get_account_with_commitment(
                 rpc_client,
-                nonce_account,
+                &nonce_info.account,
                 config.commitment,
             )?;
-            check_nonce_account(&nonce_account, &nonce_authority.pubkey(), &recent_blockhash)?;
+            check_nonce_account(&nonce_account, &nonce_authority_pubkey, &recent_blockhash)?;
         }
 
         tx.try_sign(&config.signers, recent_blockhash)?;
