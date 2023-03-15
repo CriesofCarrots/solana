@@ -57,6 +57,7 @@ impl NonceArgs for Command<'_> {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct NonceSignerInfo {
     nonce_account: Pubkey,
     signer_index: SignerIndex,
