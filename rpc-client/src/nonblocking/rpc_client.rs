@@ -5370,8 +5370,10 @@ impl RpcClient {
             .send(request, params)
             .await
             .map_err(|err| err.into_with_request(request))?;
-        serde_json::from_value(response)
-            .map_err(|err| ClientError::new_with_request(err.into(), request))
+        serde_json::from_value(response.clone()).map_err(|err| {
+            warn!("{:?}", response);
+            ClientError::new_with_request(err.into(), request)
+        })
     }
 
     pub fn get_transport_stats(&self) -> RpcTransportStats {
