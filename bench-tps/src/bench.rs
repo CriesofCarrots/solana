@@ -1067,6 +1067,12 @@ pub fn fund_keypairs<T: 'static + BenchTpsClient + Send + Sync + ?Sized>(
                 .is_err()
             {
                 return Err(BenchTpsError::AirdropFailure);
+            } else {
+                let mut balance = funding_key_balance;
+                while balance < total + rent {
+                    balance = client.get_balance(&funding_key.pubkey()).unwrap_or(0);
+                    sleep(Duration::from_millis(100));
+                }
             }
         }
 
