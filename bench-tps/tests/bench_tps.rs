@@ -123,7 +123,7 @@ fn create_client(
     }
 }
 
-fn test_bench_tps_test_validator(config: Config) {
+fn test_bench_tps_test_validator(config: Config, client_type: ExternalClientType) {
     solana_logger::setup();
 
     let mint_keypair = Keypair::new();
@@ -144,7 +144,7 @@ fn test_bench_tps_test_validator(config: Config) {
         .expect("validator start failed");
 
     let client = create_client(
-        &ExternalClientType::TpuClient,
+        &client_type,
         &test_validator.rpc_url(),
         &test_validator.rpc_pubsub_url(),
     );
@@ -184,22 +184,28 @@ fn test_bench_tps_local_cluster_solana() {
 #[test]
 #[serial]
 fn test_bench_tps_tpu_client() {
-    test_bench_tps_test_validator(Config {
-        tx_count: 100,
-        duration: Duration::from_secs(10),
-        ..Config::default()
-    });
+    test_bench_tps_test_validator(
+        Config {
+            tx_count: 100,
+            duration: Duration::from_secs(10),
+            ..Config::default()
+        },
+        ExternalClientType::TpuClient,
+    );
 }
 
 #[test]
 #[serial]
 fn test_bench_tps_tpu_client_nonce() {
-    test_bench_tps_test_validator(Config {
-        tx_count: 100,
-        duration: Duration::from_secs(10),
-        use_durable_nonce: true,
-        ..Config::default()
-    });
+    test_bench_tps_test_validator(
+        Config {
+            tx_count: 100,
+            duration: Duration::from_secs(10),
+            use_durable_nonce: true,
+            ..Config::default()
+        },
+        ExternalClientType::TpuClient,
+    );
 }
 
 #[test]
@@ -219,13 +225,16 @@ fn test_bench_tps_local_cluster_with_padding() {
 #[test]
 #[serial]
 fn test_bench_tps_tpu_client_with_padding() {
-    test_bench_tps_test_validator(Config {
-        tx_count: 100,
-        duration: Duration::from_secs(10),
-        instruction_padding_config: Some(InstructionPaddingConfig {
-            program_id: spl_instruction_padding::ID,
-            data_size: 0,
-        }),
-        ..Config::default()
-    });
+    test_bench_tps_test_validator(
+        Config {
+            tx_count: 100,
+            duration: Duration::from_secs(10),
+            instruction_padding_config: Some(InstructionPaddingConfig {
+                program_id: spl_instruction_padding::ID,
+                data_size: 0,
+            }),
+            ..Config::default()
+        },
+        ExternalClientType::TpuClient,
+    );
 }
