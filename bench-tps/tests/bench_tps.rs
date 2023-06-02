@@ -4,7 +4,8 @@ use {
     serial_test::serial,
     solana_bench_tps::{
         bench::{do_bench_tps, generate_and_fund_keypairs},
-        cli::{Config, InstructionPaddingConfig},
+        bench_tps_client::BenchTpsClient,
+        cli::{Config, ExternalClientType, InstructionPaddingConfig},
         send_batch::generate_durable_nonce_accounts,
     },
     solana_client::{
@@ -104,6 +105,24 @@ fn test_bench_tps_local_cluster(config: Config) {
     assert!(_total > 100);
 }
 
+fn create_client(
+    external_client_type: &ExternalClientType,
+    json_rpc_url: &str,
+    websocket_url: &str,
+) -> Arc<dyn BenchTpsClient + Send + Sync> {
+    let rpc_client = Arc::new(RpcClient::new_with_commitment(
+        json_rpc_url.to_string(),
+        CommitmentConfig::processed(),
+    ));
+    match external_client_type {
+        ExternalClientType::RpcClient => rpc_client,
+        ExternalClientType::TpuClient => Arc::new(
+            TpuClient::new(rpc_client, &websocket_url, TpuClientConfig::default()).unwrap(),
+        ),
+        ExternalClientType::ThinClient => unimplemented!(),
+    }
+}
+
 fn test_bench_tps_test_validator(config: Config) {
     solana_logger::setup();
 
@@ -124,13 +143,11 @@ fn test_bench_tps_test_validator(config: Config) {
         .start_with_mint_address(mint_pubkey, SocketAddrSpace::Unspecified)
         .expect("validator start failed");
 
-    let rpc_client = Arc::new(RpcClient::new_with_commitment(
-        test_validator.rpc_url(),
-        CommitmentConfig::processed(),
-    ));
-    let websocket_url = test_validator.rpc_pubsub_url();
-    let client =
-        Arc::new(TpuClient::new(rpc_client, &websocket_url, TpuClientConfig::default()).unwrap());
+    let client = create_client(
+        &ExternalClientType::TpuClient,
+        &test_validator.rpc_url(),
+        &test_validator.rpc_pubsub_url(),
+    );
 
     let lamports_per_account = 1000;
 
