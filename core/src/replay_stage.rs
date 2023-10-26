@@ -2917,6 +2917,7 @@ impl ReplayStage {
                 }
                 Self::record_rewards(bank, rewards_recorder_sender);
                 if let Some(ref block_metadata_notifier) = block_metadata_notifier {
+                    warn!("{:?}", r_replay_progress);
                     let block_metadata_notifier = block_metadata_notifier.read().unwrap();
                     let parent_bank = bank.parent();
                     let parent_blockhash = parent_bank
