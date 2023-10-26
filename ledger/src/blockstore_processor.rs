@@ -1029,7 +1029,7 @@ impl BatchExecutionTiming {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ConfirmationProgress {
     pub last_entry: Hash,
     pub tick_hash_count: u64,
