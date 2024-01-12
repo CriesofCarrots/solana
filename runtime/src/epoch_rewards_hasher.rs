@@ -6,21 +6,21 @@ use {
 };
 
 #[derive(Debug, Clone)]
-pub(crate) struct EpochRewardsHasher {
+pub struct EpochRewardsHasher {
     hasher: SipHasher13,
     partitions: usize,
 }
 
 impl EpochRewardsHasher {
     /// Use SipHasher13 keyed on the `seed` for calculating epoch reward partition
-    pub(crate) fn new(partitions: usize, seed: &Hash) -> Self {
+    pub fn new(partitions: usize, seed: &Hash) -> Self {
         let mut hasher = SipHasher13::new();
         hasher.write(seed.as_ref());
         Self { hasher, partitions }
     }
 
     /// Return partition index (0..partitions) by hashing `address` with the `hasher`
-    pub(crate) fn hash_address_to_partition(self, address: &Pubkey) -> usize {
+    pub fn hash_address_to_partition(self, address: &Pubkey) -> usize {
         let Self {
             mut hasher,
             partitions,
