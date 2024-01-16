@@ -2303,6 +2303,28 @@ fn get_encoded_account(
     }
 }
 
+fn encoded_account(
+    account: AccountSharedData,
+    pubkey: &Pubkey,
+    encoding: UiAccountEncoding,
+    data_slice: Option<UiDataSliceConfig>,
+    maybe_mint: Option<(&Pubkey, AccountSharedData)>,
+) -> Result<UiAccount> {
+    if is_known_spl_token_id(account.owner()) && encoding == UiAccountEncoding::JsonParsed {
+        let (mint_address, mint_account) = maybe_mint.ok_or_else(|| {
+            Error::invalid_params("Invalid param: Token mint info must be populated".to_string())
+        })?;
+        Ok(parse_token_account(
+            pubkey,
+            account,
+            mint_address,
+            mint_account,
+        ))
+    } else {
+        encode_account(&account, pubkey, encoding, data_slice)
+    }
+}
+
 fn encode_account<T: ReadableAccount>(
     account: &T,
     pubkey: &Pubkey,
