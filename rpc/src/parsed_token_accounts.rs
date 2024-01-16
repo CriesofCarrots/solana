@@ -72,11 +72,11 @@ where
 
 /// Analyze a mint Pubkey that may be the native_mint and get the mint-account owner (token
 /// program_id) and decimals
-pub fn get_mint_owner_and_decimals(bank: &Bank, mint: &Pubkey) -> Result<(Pubkey, u8)> {
-    if mint == &spl_token::native_mint::id() {
+pub fn get_mint_owner_and_decimals(bank: &Bank, mint_address: &Pubkey) -> Result<(Pubkey, u8)> {
+    if mint_address == &spl_token::native_mint::id() {
         Ok((spl_token::id(), spl_token::native_mint::DECIMALS))
     } else {
-        let mint_account = bank.get_account(mint).ok_or_else(|| {
+        let mint_account = bank.get_account(mint_address).ok_or_else(|| {
             Error::invalid_params("Invalid param: could not find mint".to_string())
         })?;
         let decimals = get_mint_decimals(mint_account.data())?;
