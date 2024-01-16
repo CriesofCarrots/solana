@@ -34,6 +34,26 @@ pub fn get_parsed_token_account(
     )
 }
 
+pub fn parse_token_account(
+    pubkey: &Pubkey,
+    account: AccountSharedData,
+    mint_address: &Pubkey,
+    mint_account: AccountSharedData,
+) -> UiAccount {
+    let additional_data = mint_owner_and_decimals(mint_address, mint_account)
+        .ok()
+        .map(|(_, decimals)| AccountAdditionalData {
+            spl_token_decimals: Some(decimals),
+        });
+    UiAccount::encode(
+        pubkey,
+        &account,
+        UiAccountEncoding::JsonParsed,
+        additional_data,
+        None,
+    )
+}
+
 pub fn get_parsed_token_accounts<I>(
     bank: Arc<Bank>,
     keyed_accounts: I,
