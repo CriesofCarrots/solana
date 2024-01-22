@@ -247,7 +247,13 @@ fn make_close_message(
                     )
                     .unwrap(),
                 ),
-                AccountType::Stake(_) => None,
+                AccountType::Stake(_) => Some(stake::instruction::withdraw(
+                    &address,
+                    &base_keypair.pubkey(),
+                    &keypair.pubkey(),
+                    balance,
+                    None,
+                )),
                 AccountType::System => Some(system_instruction::transfer_with_seed(
                     &address,
                     &base_keypair.pubkey(),
