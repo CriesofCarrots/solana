@@ -190,7 +190,22 @@ fn make_create_message(
                         .unwrap(),
                     );
                 }
-                AccountType::Stake(vote_address) => {}
+                AccountType::Stake(vote_address) => {
+                    instructions.push(stake::instruction::initialize(
+                        &to_pubkey,
+                        &stake::state::Authorized::auto(&base_keypair.pubkey()),
+                        &stake::state::Lockup {
+                            unix_timestamp: 0,
+                            epoch: 0,
+                            custodian: base_keypair.pubkey(),
+                        },
+                    ));
+                    instructions.push(stake::instruction::delegate_stake(
+                        &to_pubkey,
+                        &base_keypair.pubkey(),
+                        &vote_address,
+                    ));
+                }
                 _ => {}
             }
 
