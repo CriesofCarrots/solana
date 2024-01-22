@@ -6,7 +6,9 @@ use {
     rayon::prelude::*,
     solana_accounts_db::inline_spl_token,
     solana_clap_utils::{
-        hidden_unless_forced, input_parsers::pubkey_of, input_validators::is_url_or_moniker,
+        hidden_unless_forced,
+        input_parsers::{pubkey_of, value_of},
+        input_validators::is_url_or_moniker,
     },
     solana_cli_config::{ConfigInput, CONFIG_FILE},
     solana_client::{rpc_request::TokenAccountsFilter, transaction_executor::TransactionExecutor},
@@ -131,7 +133,7 @@ struct SeedTracker {
 
 enum AccountType {
     SplToken(Pubkey),
-    Stake(Pubkey),
+    Stake((Pubkey, u64)),
     System,
 }
 
@@ -166,6 +168,10 @@ fn make_create_message(
     let instructions: Vec<_> = (0..num_instructions)
         .flat_map(|_| {
             let program_id = account_type.get_program_id();
+            let amount = match account_type {
+                AccountType::Stake((_, stake_amount)) => balance + stake_amount,
+                _ => balance,
+            };
             let seed = max_created_seed.fetch_add(1, Ordering::Relaxed).to_string();
             let to_pubkey =
                 Pubkey::create_with_seed(&base_keypair.pubkey(), &seed, &program_id).unwrap();
@@ -174,7 +180,7 @@ fn make_create_message(
                 &to_pubkey,
                 &base_keypair.pubkey(),
                 &seed,
-                balance,
+                amount,
                 space,
                 &program_id,
             )];
@@ -190,7 +196,7 @@ fn make_create_message(
                         .unwrap(),
                     );
                 }
-                AccountType::Stake(vote_address) => {
+                AccountType::Stake((vote_address, _)) => {
                     instructions.push(stake::instruction::initialize(
                         &to_pubkey,
                         &stake::state::Authorized::auto(&base_keypair.pubkey()),
@@ -955,7 +961,14 @@ fn main() {
                 .long("delegate-to")
                 .takes_value(true)
                 .conflicts_with("mint")
+                .requires("stake_amount")
                 .help("Vote account to delegate stake accounts to"),
+        )
+        .arg(
+            Arg::with_name("stake_amount")
+                .long("stake")
+                .takes_value(true)
+                .help("Amount of stake to delegate above rent-exempt minimum"),
         )
         .arg(
             Arg::with_name("reclaim_accounts")
@@ -1009,10 +1022,11 @@ fn main() {
 
     let mint = pubkey_of(&matches, "mint");
     let vote_account = pubkey_of(&matches, "vote_account");
+    let stake_amount = value_of(&matches, "stake_amount");
     let account_type = if let Some(mint) = mint {
         AccountType::SplToken(mint)
     } else if let Some(vote_account) = vote_account {
-        AccountType::Stake(vote_account)
+        AccountType::Stake((vote_account, stake_amount.unwrap()))
     } else {
         AccountType::System
     };
