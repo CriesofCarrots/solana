@@ -20,7 +20,7 @@ use {
         message::Message,
         pubkey::Pubkey,
         signature::{read_keypair_file, Keypair, Signer},
-        system_instruction, system_program,
+        stake, system_instruction, system_program,
         transaction::Transaction,
     },
     solana_streamer::socket::SocketAddrSpace,
@@ -129,6 +129,29 @@ struct SeedTracker {
     max_closed: Arc<AtomicU64>,
 }
 
+enum AccountType {
+    SplToken(Pubkey),
+    Stake(Pubkey),
+    System,
+}
+
+impl AccountType {
+    fn get_program_id(&self) -> Pubkey {
+        match self {
+            AccountType::SplToken(_) => inline_spl_token::id(),
+            AccountType::Stake(_) => stake::program::id(),
+            AccountType::System => system_program::id(),
+        }
+    }
+
+    fn mint(&self) -> Option<Pubkey> {
+        match self {
+            AccountType::SplToken(mint) => Some(*mint),
+            _ => None,
+        }
+    }
+}
+
 fn make_create_message(
     keypair: &Keypair,
     base_keypair: &Keypair,
@@ -136,17 +159,13 @@ fn make_create_message(
     num_instructions: usize,
     balance: u64,
     maybe_space: Option<u64>,
-    mint: Option<Pubkey>,
+    account_type: &AccountType,
 ) -> Message {
     let space = maybe_space.unwrap_or_else(|| thread_rng().gen_range(0..1000));
 
     let instructions: Vec<_> = (0..num_instructions)
         .flat_map(|_| {
-            let program_id = if mint.is_some() {
-                inline_spl_token::id()
-            } else {
-                system_program::id()
-            };
+            let program_id = account_type.get_program_id();
             let seed = max_created_seed.fetch_add(1, Ordering::Relaxed).to_string();
             let to_pubkey =
                 Pubkey::create_with_seed(&base_keypair.pubkey(), &seed, &program_id).unwrap();
@@ -159,16 +178,20 @@ fn make_create_message(
                 space,
                 &program_id,
             )];
-            if let Some(mint_address) = mint {
-                instructions.push(
-                    spl_token::instruction::initialize_account(
-                        &spl_token::id(),
-                        &to_pubkey,
-                        &mint_address,
-                        &base_keypair.pubkey(),
-                    )
-                    .unwrap(),
-                );
+            match account_type {
+                AccountType::SplToken(mint_address) => {
+                    instructions.push(
+                        spl_token::instruction::initialize_account(
+                            &spl_token::id(),
+                            &to_pubkey,
+                            &mint_address,
+                            &base_keypair.pubkey(),
+                        )
+                        .unwrap(),
+                    );
+                }
+                AccountType::Stake(vote_address) => {}
+                _ => {}
             }
 
             instructions
@@ -185,15 +208,11 @@ fn make_close_message(
     max_closed: &AtomicU64,
     num_instructions: usize,
     balance: u64,
-    spl_token: bool,
+    account_type: &AccountType,
 ) -> Message {
     let instructions: Vec<_> = (0..num_instructions)
         .filter_map(|_| {
-            let program_id = if spl_token {
-                inline_spl_token::id()
-            } else {
-                system_program::id()
-            };
+            let program_id = account_type.get_program_id();
             let max_created_seed = max_created.load(Ordering::Relaxed);
             let max_closed_seed = max_closed.load(Ordering::Relaxed);
             if max_closed_seed >= max_created_seed {
@@ -202,26 +221,26 @@ fn make_close_message(
             let seed = max_closed.fetch_add(1, Ordering::Relaxed).to_string();
             let address =
                 Pubkey::create_with_seed(&base_keypair.pubkey(), &seed, &program_id).unwrap();
-            if spl_token {
-                Some(
+            match account_type {
+                AccountType::SplToken(_) => Some(
                     spl_token::instruction::close_account(
-                        &spl_token::id(),
+                        &program_id,
                         &address,
                         &keypair.pubkey(),
                         &base_keypair.pubkey(),
                         &[],
                     )
                     .unwrap(),
-                )
-            } else {
-                Some(system_instruction::transfer_with_seed(
+                ),
+                AccountType::Stake(_) => None,
+                AccountType::System => Some(system_instruction::transfer_with_seed(
                     &address,
                     &base_keypair.pubkey(),
                     seed,
                     &program_id,
                     &keypair.pubkey(),
                     balance,
-                ))
+                )),
             }
         })
         .collect();
@@ -457,18 +476,15 @@ fn run_rpc_bench_loop(
 
 fn make_rpc_bench_threads(
     rpc_benches: Vec<RpcBench>,
-    mint: &Option<Pubkey>,
+    account_type: &AccountType,
     exit: &Arc<AtomicBool>,
     client: &Arc<RpcClient>,
     seed_tracker: &SeedTracker,
     base_keypair_pubkey: Pubkey,
     num_rpc_bench_threads: usize,
 ) -> Vec<JoinHandle<()>> {
-    let program_id = if mint.is_some() {
-        inline_spl_token::id()
-    } else {
-        system_program::id()
-    };
+    let program_id = account_type.get_program_id();
+    let mint = account_type.mint();
     rpc_benches
         .into_iter()
         .flat_map(|rpc_bench| {
@@ -477,7 +493,6 @@ fn make_rpc_bench_threads(
                 let exit = exit.clone();
                 let max_closed = seed_tracker.max_closed.clone();
                 let max_created = seed_tracker.max_created.clone();
-                let mint = *mint;
                 Builder::new()
                     .name(format!("rpc-bench-{}", thread))
                     .spawn(move || {
@@ -510,7 +525,7 @@ fn run_accounts_bench(
     maybe_lamports: Option<u64>,
     num_instructions: usize,
     max_accounts: Option<usize>,
-    mint: Option<Pubkey>,
+    account_type: AccountType,
     reclaim_accounts: bool,
     rpc_benches: Option<Vec<RpcBench>>,
     num_rpc_bench_threads: usize,
@@ -571,7 +586,7 @@ fn run_accounts_bench(
     let rpc_bench_threads: Vec<_> = if let Some(rpc_benches) = rpc_benches {
         make_rpc_bench_threads(
             rpc_benches,
-            &mint,
+            &account_type,
             &exit,
             &client,
             &seed_tracker,
@@ -631,7 +646,7 @@ fn run_accounts_bench(
                                     num_instructions,
                                     min_balance,
                                     maybe_space,
-                                    mint,
+                                    &account_type,
                                 );
                                 let signers: Vec<&Keypair> = vec![keypair, &base_keypair];
                                 Transaction::new(&signers, message, blockhash)
@@ -664,7 +679,7 @@ fn run_accounts_bench(
                                 &seed_tracker.max_closed,
                                 1,
                                 min_balance,
-                                mint.is_some(),
+                                &account_type,
                             );
                             let signers: Vec<&Keypair> = vec![payer_keypairs[0], &base_keypair];
                             Transaction::new(&signers, message, blockhash)
@@ -746,7 +761,7 @@ fn run_accounts_bench(
                                         &seed_tracker.max_closed,
                                         num_instructions,
                                         min_balance,
-                                        mint.is_some(),
+                                        &account_type,
                                     );
                                     if message.instructions.is_empty() {
                                         return None;
@@ -973,6 +988,13 @@ fn main() {
 
     let mint = pubkey_of(&matches, "mint");
     let vote_account = pubkey_of(&matches, "vote_account");
+    let account_type = if let Some(mint) = mint {
+        AccountType::SplToken(mint)
+    } else if let Some(vote_account) = vote_account {
+        AccountType::Stake(vote_account)
+    } else {
+        AccountType::System
+    };
 
     let payer_keypairs: Vec<_> = values_t_or_exit!(matches, "identity", String)
         .iter()
@@ -1047,7 +1069,7 @@ fn main() {
         lamports,
         num_instructions,
         max_accounts,
-        mint,
+        account_type,
         matches.is_present("reclaim_accounts"),
         rpc_benches,
         num_rpc_bench_threads,
@@ -1111,7 +1133,6 @@ pub mod test {
             rpc_addr,
             CommitmentConfig::confirmed(),
         ));
-        let mint = None;
         let reclaim_accounts = false;
         let pre_txs = client.get_transaction_count().unwrap();
         run_accounts_bench(
@@ -1124,7 +1145,7 @@ pub mod test {
             maybe_lamports,
             num_instructions,
             None,
-            mint,
+            AccountType::System,
             reclaim_accounts,
             Some(vec![RpcBench::ProgramAccounts]),
             1,
@@ -1162,7 +1183,6 @@ pub mod test {
             rpc_addr,
             CommitmentConfig::confirmed(),
         ));
-        let mint = None;
         let reclaim_accounts = false;
         let pre_txs = client.get_transaction_count().unwrap();
         run_accounts_bench(
@@ -1175,7 +1195,7 @@ pub mod test {
             maybe_lamports,
             num_instructions,
             Some(90),
-            mint,
+            AccountType::System,
             reclaim_accounts,
             Some(vec![RpcBench::ProgramAccounts]),
             1,
@@ -1275,7 +1295,7 @@ pub mod test {
             Some(minimum_balance),
             num_instructions,
             None,
-            Some(spl_mint_keypair.pubkey()),
+            AccountType::SplToken(spl_mint_keypair.pubkey()),
             true,
             None,
             0,
