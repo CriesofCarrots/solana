@@ -915,6 +915,13 @@ fn main() {
                 .help("Mint address to initialize account"),
         )
         .arg(
+            Arg::with_name("vote_account")
+                .long("delegate-to")
+                .takes_value(true)
+                .conflicts_with("mint")
+                .help("Vote account to delegate stake accounts to"),
+        )
+        .arg(
             Arg::with_name("reclaim_accounts")
                 .long("reclaim-accounts")
                 .takes_value(false)
@@ -965,6 +972,7 @@ fn main() {
     };
 
     let mint = pubkey_of(&matches, "mint");
+    let vote_account = pubkey_of(&matches, "vote_account");
 
     let payer_keypairs: Vec<_> = values_t_or_exit!(matches, "identity", String)
         .iter()
