@@ -4381,20 +4381,22 @@ impl Bank {
             true,
         );
 
-        let post_simulation_accounts = loaded_transactions
-            .into_iter()
-            .next()
-            .unwrap()
-            .0
-            .ok()
-            .map(|loaded_transaction| {
+        let post_simulation_accounts =
+            if let Some(loaded_transaction) = loaded_transactions.into_iter().next() {
                 loaded_transaction
-                    .accounts
-                    .into_iter()
-                    .take(number_of_accounts)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+                    .0
+                    .ok()
+                    .map(|loaded_transaction| {
+                        loaded_transaction
+                            .accounts
+                            .into_iter()
+                            .take(number_of_accounts)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            } else {
+                vec![]
+            };
 
         let units_consumed = timings
             .details
