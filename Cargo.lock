@@ -7452,7 +7452,7 @@ dependencies = [
  "Inflector",
  "base64 0.21.7",
  "bincode",
- "borsh 0.10.3",
+ "borsh 1.2.1",
  "bs58",
  "lazy_static",
  "log",
@@ -7876,9 +7876,9 @@ dependencies = [
 
 [[package]]
 name = "spl-token-2022"
-version = "2.0.1"
+version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9fec83597cf7be923c5c3bdfd2fcc08cdfacd2eeb6c4e413da06b6916f50827"
+checksum = "309a3b7982b34879a196f263bdb53ef80f0341dfdf589084c0a15dc4c40418be"
 dependencies = [
  "arrayref",
  "bytemuck",
