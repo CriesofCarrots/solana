@@ -959,20 +959,22 @@ fn main() {
                 .long("mint")
                 .takes_value(true)
                 .value_name("MINT_ADDRESS")
-                .help("Mint address to initialize account"),
+                .help("Mint address to initialize account. If `--mint` is present, client will create spl-token accounts."),
         )
         .arg(
             Arg::with_name("vote_account")
                 .long("delegate-to")
                 .takes_value(true)
+                .value_name("VOTE_ACCOUNT_ADDRESS")
                 .conflicts_with("mint")
                 .requires("stake_amount")
-                .help("Vote account to delegate stake accounts to"),
+                .help("Vote account to delegate stake accounts to. If `--delegate-to` is present, client will create delegated stake accounts."),
         )
         .arg(
             Arg::with_name("stake_amount")
                 .long("stake")
                 .takes_value(true)
+                .value_name("STAKE_AMOUNT")
                 .help("Amount of stake to delegate above rent-exempt minimum"),
         )
         .arg(
