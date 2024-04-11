@@ -486,7 +486,7 @@ impl Bank {
         (points > 0).then_some(PointValue { rewards, points })
     }
 
-    fn recalculate_partitions(
+    pub(in crate::bank) fn recalculate_partitions(
         &self,
         rewarded_epoch: Epoch,
         reward_calc_tracer: Option<impl RewardCalcTracer>,
