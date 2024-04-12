@@ -364,6 +364,7 @@ impl Bank {
                         reward_calc_tracer.as_ref(),
                         new_warmup_cooldown_rate_epoch,
                     );
+                    log::warn!("redeemed {:?}", redeemed);
 
                     let post_lamport = stake_account.lamports();
 
@@ -521,6 +522,7 @@ impl Bank {
             reward_calc_tracer,
             metrics,
         );
+        log::warn!("recalc stake_rewards {:?}", stake_rewards.len());
         hash_rewards_into_partitions(
             std::mem::take(&mut stake_rewards),
             &epoch_rewards_sysvar.parent_blockhash,

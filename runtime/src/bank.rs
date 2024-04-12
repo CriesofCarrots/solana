@@ -1683,13 +1683,36 @@ impl Bank {
             );
             let alternate_epoch_reward_status =
                 EpochRewardStatus::Active(StartBlockHeightAndRewards {
-                    start_block_height: epoch_rewards_sysvar.distribution_starting_block_height,
+                    start_block_height: epoch_rewards_sysvar.distribution_starting_block_height - 1,
                     stake_rewards_by_partition: Arc::new(recalculated),
                 });
+            warn!("SLOT {:?}", bank.slot());
+            warn!("BLOCK HEIGHT {:?}", bank.block_height());
+            warn!("rewards {:?}", bank.rewards);
             warn!(
                 "{:?}",
                 alternate_epoch_reward_status == bank.epoch_reward_status
             );
+            if let EpochRewardStatus::Active(StartBlockHeightAndRewards {
+                stake_rewards_by_partition,
+                ..
+            }) = alternate_epoch_reward_status {
+                warn!("RECALC num_partitions {:?}", stake_rewards_by_partition.len());
+                for parition in stake_rewards_by_partition.iter() {
+                    warn!("RECALC {:?}", parition.len());
+                }
+            }
+            // warn!("RECALC {:?}", alternate_epoch_reward_status);
+            if let EpochRewardStatus::Active(StartBlockHeightAndRewards {
+                stake_rewards_by_partition,
+                ..
+            }) = &bank.epoch_reward_status {
+                warn!("bank num_partitions {:?}", stake_rewards_by_partition.len());
+                for parition in stake_rewards_by_partition.iter() {
+                    warn!("bank {:?}", parition.len());
+                }
+            }
+            // warn!("bank {:?}", bank.epoch_reward_status);
         } else {
             warn!("rewards period not active");
         }
