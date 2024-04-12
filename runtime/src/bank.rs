@@ -1664,6 +1664,7 @@ impl Bank {
         bank.rebuild_skipped_rewrites();
 
         let epoch_rewards_sysvar = bank.get_epoch_rewards_sysvar();
+        warn!("{:?}", epoch_rewards_sysvar);
         if epoch_rewards_sysvar.active {
             use crate::bank::partitioned_epoch_rewards::StartBlockHeightAndRewards;
             let (thread_pool, _thread_pool_time) = measure!(
