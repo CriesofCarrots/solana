@@ -168,3 +168,43 @@ fn bench_store_rewards_load_and_store_bulk(bencher: &mut Bencher) {
         bank.store_accounts((bank.slot(), &new_stake_rewards[..]));
     });
 }
+
+#[bench]
+fn bench_store_rewards_load_from_cache_and_store_bulk(bencher: &mut Bencher) {
+    let (genesis_config, _) = create_genesis_config(10_000);
+    let bank = Bank::new_with_paths_for_benches(
+        &genesis_config,
+        vec![PathBuf::from("bench_store_stake_load_and_store_bulk")],
+    );
+    let stake_rewards = populate_bank(&bank, NUM_ACCOUNTS, sol_to_lamports(1.0));
+    let partitioned_stake_rewards: Vec<_> = stake_rewards
+        .into_iter()
+        .map(|stake_reward| PartitionedStakeReward::maybe_from(&stake_reward).unwrap())
+        .collect();
+    bencher.iter(|| {
+        let bank_stakes = bank.stakes_cache.stakes();
+        let bank_stake_accounts = bank_stakes.stake_delegations();
+        let mut new_stake_rewards = vec![];
+        for reward in &partitioned_stake_rewards {
+            let pubkey = reward.stake_pubkey;
+            let stake_account = bank_stake_accounts.get(&pubkey).unwrap();
+            let mut account = stake_account.account.clone();
+            let reward_amount = reward.get_stake_reward() as u64;
+            let StakeStateV2::Stake(meta, _stake, flags) = stake_account.stake_state else {
+                panic!();
+            };
+            account.checked_add_lamports(reward_amount).unwrap();
+            account
+                .set_state(&StakeStateV2::Stake(meta, reward.stake, flags))
+                .unwrap();
+            new_stake_rewards.push(StakeReward {
+                stake_pubkey: pubkey,
+                stake_reward_info: reward.stake_reward_info,
+                stake_account: account,
+            });
+            println!("here");
+        }
+        drop(bank_stakes);
+        bank.store_accounts((bank.slot(), &new_stake_rewards[..]));
+    });
+}
