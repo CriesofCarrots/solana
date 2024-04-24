@@ -81,7 +81,7 @@ impl Bank {
 
     /// Process reward credits for a partition of rewards
     /// Store the rewards to AccountsDB, update reward history record and total capitalization.
-    fn distribute_epoch_rewards_in_partition(
+    pub fn distribute_epoch_rewards_in_partition(
         &self,
         all_stake_rewards: &[StakeRewards],
         partition_index: u64,

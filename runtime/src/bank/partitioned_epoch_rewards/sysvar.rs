@@ -22,7 +22,7 @@ impl Bank {
     /// Create EpochRewards sysvar with calculated rewards
     /// This method must be called before a new Bank advances its
     /// last_blockhash.
-    pub(in crate::bank) fn create_epoch_rewards_sysvar(
+    pub fn create_epoch_rewards_sysvar(
         &self,
         total_rewards: u64,
         distributed_rewards: u64,
