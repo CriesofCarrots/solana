@@ -4,7 +4,7 @@ extern crate test;
 
 use {
     solana_accounts_db::stake_rewards::StakeReward,
-    solana_runtime::bank::Bank,
+    solana_runtime::{bank::Bank, genesis_utils::activate_all_features},
     solana_sdk::{
         account::{AccountSharedData, WritableAccount},
         account_utils::StateMut,
@@ -82,6 +82,7 @@ fn populate_bank(bank: &Bank, num_accounts: usize, starting_stake: u64) -> Vec<S
             ))
             .unwrap();
         bank.store_account(&stake_pubkey, &stake_account);
+        stake_account.checked_add_lamports(42).unwrap();
         stake_rewards.push(StakeReward {
             stake_pubkey,
             stake_reward_info: reward_info.clone(),
@@ -206,5 +207,30 @@ fn bench_store_rewards_load_from_cache_and_store_bulk(bencher: &mut Bencher) {
         }
         drop(bank_stakes);
         bank.store_accounts((bank.slot(), &new_stake_rewards[..]));
+    });
+}
+
+#[bench]
+fn bench_distribute_epoch_rewards_in_partition(bencher: &mut Bencher) {
+    let (mut genesis_config, _) = create_genesis_config(10_000);
+    activate_all_features(&mut genesis_config);
+    let bank = Bank::new_with_paths_for_benches(
+        &genesis_config,
+        vec![PathBuf::from("bench_store_stake_load_and_store_bulk")],
+    );
+    let stake_rewards = populate_bank(&bank, NUM_ACCOUNTS, sol_to_lamports(1.0));
+    bank.create_epoch_rewards_sysvar(
+        1_000_000_000,
+        0,
+        0,
+        1_000_000,
+        1_000_000_000, // arbitrary and incorrect
+    );
+    let mut partition = 0;
+    bencher.iter(|| {
+        let mut rewards = vec![vec![]; partition + 1];
+        rewards[partition] = stake_rewards.clone();
+        bank.distribute_epoch_rewards_in_partition(&rewards, partition as u64);
+        partition += 1;
     });
 }

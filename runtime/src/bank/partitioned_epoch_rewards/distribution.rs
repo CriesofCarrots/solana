@@ -51,7 +51,7 @@ impl Bank {
 
     /// Process reward credits for a partition of rewards
     /// Store the rewards to AccountsDB, update reward history record and total capitalization.
-    fn distribute_epoch_rewards_in_partition(
+    pub fn distribute_epoch_rewards_in_partition(
         &self,
         all_stake_rewards: &[Vec<StakeReward>],
         partition_index: u64,
@@ -108,7 +108,7 @@ impl Bank {
         // rewarded account. This code will have a performance hit - an extra load and compare of
         // the stake accounts. This is for debugging. Once we are confident, we can disable the
         // check.
-        const VERIFY_REWARD_LAMPORT: bool = true;
+        const VERIFY_REWARD_LAMPORT: bool = false;
 
         if VERIFY_REWARD_LAMPORT {
             for r in stake_rewards {
