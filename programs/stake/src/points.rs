@@ -116,6 +116,72 @@ pub(crate) fn calculate_stake_points_and_credits(
     let credits_in_stake = stake.credits_observed;
     let credits_in_vote = new_vote_state.credits();
     // if there is no newer credits since observed, return no point
+    if let Some(result) = compare_stake_vote_credits(
+        credits_in_vote,
+        credits_in_stake,
+        &inflation_point_calc_tracer,
+    ) {
+        return result;
+    }
+
+    let (points, new_credits_observed) = handle_epoch_credits(
+        new_vote_state.epoch_credits().iter().copied(),
+        stake,
+        stake_history,
+        new_rate_activation_epoch,
+        &inflation_point_calc_tracer,
+    );
+
+    CalculatedStakePoints {
+        points,
+        new_credits_observed,
+        force_credits_update_with_skipped_reward: false,
+    }
+}
+
+pub(crate) fn calculate_stake_points_and_credits_through_epoch(
+    max_epoch: Epoch,
+    stake: &Stake,
+    new_vote_state: &VoteState,
+    stake_history: &StakeHistory,
+    inflation_point_calc_tracer: Option<impl Fn(&InflationPointCalculationEvent)>,
+    new_rate_activation_epoch: Option<Epoch>,
+) -> CalculatedStakePoints {
+    let credits_in_stake = stake.credits_observed;
+    let credits_in_vote = new_vote_state.credits_for_recent_epoch(max_epoch);
+    // if there is no newer credits since observed, return no point
+    if let Some(result) = compare_stake_vote_credits(
+        credits_in_vote,
+        credits_in_stake,
+        &inflation_point_calc_tracer,
+    ) {
+        return result;
+    }
+
+    let (points, new_credits_observed) = handle_epoch_credits(
+        new_vote_state
+            .epoch_credits()
+            .iter()
+            .take_while(|(epoch, _, _)| *epoch <= max_epoch)
+            .copied(),
+        stake,
+        stake_history,
+        new_rate_activation_epoch,
+        &inflation_point_calc_tracer,
+    );
+
+    CalculatedStakePoints {
+        points,
+        new_credits_observed,
+        force_credits_update_with_skipped_reward: false,
+    }
+}
+
+fn compare_stake_vote_credits(
+    credits_in_vote: u64,
+    credits_in_stake: u64,
+    inflation_point_calc_tracer: &Option<impl Fn(&InflationPointCalculationEvent)>,
+) -> Option<CalculatedStakePoints> {
     match credits_in_vote.cmp(&credits_in_stake) {
         Ordering::Less => {
             if let Some(inflation_point_calc_tracer) = inflation_point_calc_tracer.as_ref() {
@@ -139,32 +205,39 @@ pub(crate) fn calculate_stake_points_and_credits(
             //    delinquent validator with no differentiation.
 
             // hint with true to indicate some exceptional credits handling is needed
-            return CalculatedStakePoints {
+            Some(CalculatedStakePoints {
                 points: 0,
                 new_credits_observed: credits_in_vote,
                 force_credits_update_with_skipped_reward: true,
-            };
+            })
         }
         Ordering::Equal => {
             if let Some(inflation_point_calc_tracer) = inflation_point_calc_tracer.as_ref() {
                 inflation_point_calc_tracer(&SkippedReason::ZeroCreditsAndReturnCurrent.into());
             }
             // don't hint caller and return current value if credits remain unchanged (= delinquent)
-            return CalculatedStakePoints {
+            Some(CalculatedStakePoints {
                 points: 0,
                 new_credits_observed: credits_in_stake,
                 force_credits_update_with_skipped_reward: false,
-            };
+            })
         }
-        Ordering::Greater => {}
+        Ordering::Greater => None,
     }
+}
 
+fn handle_epoch_credits(
+    epoch_credits_iter: impl Iterator<Item = (Epoch, u64, u64)>,
+    stake: &Stake,
+    stake_history: &StakeHistory,
+    new_rate_activation_epoch: Option<Epoch>,
+    inflation_point_calc_tracer: &Option<impl Fn(&InflationPointCalculationEvent)>,
+) -> (u128, u64) {
+    let credits_in_stake = stake.credits_observed;
     let mut points = 0;
     let mut new_credits_observed = credits_in_stake;
 
-    for (epoch, final_epoch_credits, initial_epoch_credits) in
-        new_vote_state.epoch_credits().iter().copied()
-    {
+    for (epoch, final_epoch_credits, initial_epoch_credits) in epoch_credits_iter {
         let stake_amount = u128::from(stake.delegation.stake(
             epoch,
             stake_history,
@@ -202,12 +275,7 @@ pub(crate) fn calculate_stake_points_and_credits(
             ));
         }
     }
-
-    CalculatedStakePoints {
-        points,
-        new_credits_observed,
-        force_credits_update_with_skipped_reward: false,
-    }
+    (points, new_credits_observed)
 }
 
 #[cfg(test)]

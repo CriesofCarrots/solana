@@ -1663,6 +1663,60 @@ impl Bank {
             .fill_missing_sysvar_cache_entries(&bank);
         bank.rebuild_skipped_rewrites();
 
+        let epoch_rewards_sysvar = bank.get_epoch_rewards_sysvar();
+        warn!("{:?}", epoch_rewards_sysvar);
+        if epoch_rewards_sysvar.active {
+            use crate::bank::partitioned_epoch_rewards::StartBlockHeightAndRewards;
+            let (thread_pool, _thread_pool_time) = measure!(
+                ThreadPoolBuilder::new()
+                    .thread_name(|i| format!("solBnkNewFlds{i:02}"))
+                    .build()
+                    .expect("new rayon threadpool"),
+                "thread_pool_creation",
+            );
+            let mut rewards_metrics = RewardsMetrics::default();
+            let recalculated = bank.recalculate_partitions(
+                bank.epoch() - 1,
+                null_tracer(),
+                &thread_pool,
+                &mut rewards_metrics,
+            );
+            let alternate_epoch_reward_status =
+                EpochRewardStatus::Active(StartBlockHeightAndRewards {
+                    start_block_height: epoch_rewards_sysvar.distribution_starting_block_height - 1,
+                    stake_rewards_by_partition: Arc::new(recalculated),
+                });
+            warn!("SLOT {:?}", bank.slot());
+            warn!("BLOCK HEIGHT {:?}", bank.block_height());
+            warn!("rewards {:?}", bank.rewards);
+            warn!(
+                "{:?}",
+                alternate_epoch_reward_status == bank.epoch_reward_status
+            );
+            if let EpochRewardStatus::Active(StartBlockHeightAndRewards {
+                stake_rewards_by_partition,
+                ..
+            }) = alternate_epoch_reward_status {
+                warn!("RECALC num_partitions {:?}", stake_rewards_by_partition.len());
+                for parition in stake_rewards_by_partition.iter() {
+                    warn!("RECALC {:?}", parition.len());
+                }
+            }
+            // warn!("RECALC {:?}", alternate_epoch_reward_status);
+            if let EpochRewardStatus::Active(StartBlockHeightAndRewards {
+                stake_rewards_by_partition,
+                ..
+            }) = &bank.epoch_reward_status {
+                warn!("bank num_partitions {:?}", stake_rewards_by_partition.len());
+                for parition in stake_rewards_by_partition.iter() {
+                    warn!("bank {:?}", parition.len());
+                }
+            }
+            // warn!("bank {:?}", bank.epoch_reward_status);
+        } else {
+            warn!("rewards period not active");
+        }
+
         // Sanity assertions between bank snapshot and genesis config
         // Consider removing from serializable bank state
         // (BankFieldsToSerialize/BankFieldsToDeserialize) and initializing

@@ -3,7 +3,7 @@ use {
         epoch_rewards_hasher::hash_rewards_into_partitions, Bank,
         CalculateRewardsAndDistributeVoteRewardsResult, CalculateValidatorRewardsResult,
         EpochRewardCalculateParamInfo, PartitionedRewardsCalculation, StakeRewardCalculation,
-        StakeRewardCalculationPartitioned, VoteRewardsAccounts,
+        StakeRewardCalculationPartitioned, StakeRewards, VoteRewardsAccounts,
     },
     crate::bank::{
         PrevEpochInflationRewards, RewardCalcTracer, RewardCalculationEvent, RewardsMetrics,
@@ -364,6 +364,7 @@ impl Bank {
                         reward_calc_tracer.as_ref(),
                         new_warmup_cooldown_rate_epoch,
                     );
+                    log::warn!("redeemed {:?}", redeemed);
 
                     let post_lamport = stake_account.lamports();
 
@@ -484,6 +485,49 @@ impl Bank {
         metrics.calculate_points_us.fetch_add(measure_us, Relaxed);
 
         (points > 0).then_some(PointValue { rewards, points })
+    }
+
+    pub(in crate::bank) fn recalculate_partitions(
+        &self,
+        rewarded_epoch: Epoch,
+        reward_calc_tracer: Option<impl RewardCalcTracer>,
+        thread_pool: &ThreadPool,
+        metrics: &mut RewardsMetrics,
+    ) -> Vec<StakeRewards> {
+        let epoch_rewards_sysvar = self.get_epoch_rewards_sysvar();
+        if !epoch_rewards_sysvar.active {
+            return vec![];
+        }
+
+        let point_value = PointValue {
+            rewards: epoch_rewards_sysvar.total_rewards,
+            points: epoch_rewards_sysvar.total_points,
+        };
+
+        // TODO: will these stakes be unmolested enough?
+        let stakes = self.stakes_cache.stakes();
+        // TODO: update this?
+        let reward_calculate_param = self.get_epoch_reward_calculate_param_info(&stakes);
+
+        let (
+            _,
+            StakeRewardCalculation {
+                mut stake_rewards, ..
+            },
+        ) = self.calculate_stake_vote_rewards(
+            &reward_calculate_param,
+            rewarded_epoch,
+            point_value,
+            thread_pool,
+            reward_calc_tracer,
+            metrics,
+        );
+        log::warn!("recalc stake_rewards {:?}", stake_rewards.len());
+        hash_rewards_into_partitions(
+            std::mem::take(&mut stake_rewards),
+            &epoch_rewards_sysvar.parent_blockhash,
+            epoch_rewards_sysvar.num_partitions as usize,
+        )
     }
 }
 
