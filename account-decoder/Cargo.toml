@@ -16,6 +16,7 @@ bincode = { workspace = true }
 bs58 = { workspace = true }
 bv = { workspace = true }
 lazy_static = { workspace = true }
+log = { workspace = true }
 serde = { workspace = true }
 serde_derive = { workspace = true }
 serde_json = { workspace = true }

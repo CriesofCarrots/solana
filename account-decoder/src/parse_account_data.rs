@@ -6,6 +6,7 @@ use {
         parse_token::parse_token_v2, parse_vote::parse_vote,
     },
     inflector::Inflector,
+    log::warn,
     serde_json::Value,
     solana_sdk::{
         address_lookup_table, clock::UnixTimestamp, instruction::InstructionError, pubkey::Pubkey,
@@ -154,7 +155,13 @@ pub fn parse_account_data_v2(
             parse_token_v2(data, additional_data.spl_token_additional_data.as_ref())?,
         )?,
         ParsableAccount::Stake => serde_json::to_value(parse_stake(data)?)?,
-        ParsableAccount::Sysvar => serde_json::to_value(parse_sysvar(data, pubkey)?)?,
+        ParsableAccount::Sysvar => {
+            let parse_result = parse_sysvar(data, pubkey);
+            warn!("Sysvar parse result: {parse_result:?}");
+            let deser_result = serde_json::to_value(parse_result?);
+            warn!("Sysvar deser result: {deser_result:?}");
+            deser_result?
+        }
         ParsableAccount::Vote => serde_json::to_value(parse_vote(data)?)?,
     };
     Ok(ParsedAccount {
