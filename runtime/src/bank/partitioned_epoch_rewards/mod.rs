@@ -7,6 +7,7 @@ mod sysvar;
 use {
     super::Bank,
     crate::{stake_account::StakeAccount, stake_history::StakeHistory},
+    log::warn,
     solana_accounts_db::{
         partitioned_rewards::PartitionedEpochRewardsConfig, stake_rewards::StakeReward,
     },
@@ -220,16 +221,24 @@ impl Bank {
             1
         } else {
             const MAX_FACTOR_OF_REWARD_BLOCKS_IN_EPOCH: u64 = 10;
+            warn!("total_stake_accounts {total_stake_accounts:?}");
+            warn!(
+                "self.partitioned_rewards_stake_account_stores_per_block() {:?}",
+                self.partitioned_rewards_stake_account_stores_per_block()
+            );
             let num_chunks = solana_accounts_db::accounts_hash::AccountsHasher::div_ceil(
                 total_stake_accounts,
                 self.partitioned_rewards_stake_account_stores_per_block() as usize,
             ) as u64;
+            warn!("num_chunks {num_chunks:?}");
 
             // Limit the reward credit interval to 10% of the total number of slots in a epoch
-            num_chunks.clamp(
+            let num_blocks = num_chunks.clamp(
                 1,
                 (self.epoch_schedule.slots_per_epoch / MAX_FACTOR_OF_REWARD_BLOCKS_IN_EPOCH).max(1),
-            )
+            );
+            warn!("num_blocks {num_blocks:?}");
+            num_blocks
         }
     }
 
