@@ -59,6 +59,8 @@ impl Bank {
             rewards_metrics,
         );
 
+        log::warn!("total_rewards {:?}", total_rewards);
+
         let slot = self.slot();
         let distribution_starting_block_height =
             // For live-cluster testing pre-activation
