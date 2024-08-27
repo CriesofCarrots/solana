@@ -226,6 +226,8 @@ impl Bank {
             foundation_rate,
         } = self.calculate_previous_epoch_inflation_rewards(capitalization, prev_epoch);
 
+        log::warn!("validator_rewards {:?}", validator_rewards);
+
         let old_vote_balance_and_staked = self.stakes_cache.stakes().vote_balance_and_staked();
 
         let CalculateValidatorRewardsResult {
