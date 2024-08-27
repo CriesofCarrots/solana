@@ -362,7 +362,7 @@ impl Bank {
             VoteAccount::try_from(account).ok()
         };
 
-        log::warn("point_value {:?}", point_value);
+        log::warn!("point_value {:?}", point_value);
 
         let new_warmup_cooldown_rate_epoch = self.new_warmup_cooldown_rate_epoch();
         let vote_account_rewards: VoteRewards = DashMap::new();
