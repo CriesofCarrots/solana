@@ -205,11 +205,6 @@ pub(crate) fn calculate_stake_points_and_credits(
         }
     }
 
-    if print_account_stuff {
-        log::warn!("new_credits_observed {:?}", new_credits_observed);
-        log::warn!("points {:?}", points);
-    }
-
     CalculatedStakePoints {
         points,
         new_credits_observed,

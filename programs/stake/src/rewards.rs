@@ -194,6 +194,10 @@ fn calculate_stake_rewards(
         .checked_div(point_value.points)
         .unwrap();
 
+    if print_account_stuff {
+        log::warn!("u128 rewards {:?}", rewards);
+    }
+
     let rewards = u64::try_from(rewards).unwrap();
 
     // don't bother trying to split if fractional lamports got truncated
