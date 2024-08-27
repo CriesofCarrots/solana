@@ -544,7 +544,7 @@ impl Bank {
                         Pubkey::from_str("HwfZfppkMjpeo3QhS6gLpXoc1P8U4J7UmpPyuPCyY8Qc").unwrap(),
                     ];
 
-                    let print_account_stuff = keys_to_match.iter().any(|&x| x == stake_pubkey);
+                    let print_account_stuff = keys_to_match.iter().any(|&x| x == **stake_pubkey);
                     if print_account_stuff {
                         log::warn!("{:?}", vote_pubkey);
                         log::warn!("{:?}", vote_state);
