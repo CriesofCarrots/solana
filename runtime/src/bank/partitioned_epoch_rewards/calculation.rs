@@ -47,6 +47,7 @@ impl Bank {
         parent_block_height: u64,
         rewards_metrics: &mut RewardsMetrics,
     ) {
+        log::warn!("in begin_partitioned_rewards");
         let CalculateRewardsAndDistributeVoteRewardsResult {
             total_rewards,
             distributed_rewards,
@@ -540,22 +541,22 @@ impl Bank {
                         return 0;
                     };
 
-                    use {solana_sdk::pubkey::Pubkey, std::str::FromStr};
-                    let keys_to_match = vec![
-                        Pubkey::from_str("4hzUTCDKu3n3vLKKjcGTg6RBAsSC82MFEMqVzRKZPmVe").unwrap(),
-                        Pubkey::from_str("4hzXYnCMyFp6UgdA7Lt119N1qtn8xfHJcCtWhKrxSBzA").unwrap(),
-                        Pubkey::from_str("AHrRBhSmSvYjPLcrDAfnETxNMNAVUE67AHf5qWJrq2Fd").unwrap(),
-                        Pubkey::from_str("DmWegxEBuzWSe3qghTuAW5oPHc9ZgUohy9QZsjtrNyvq").unwrap(),
-                        Pubkey::from_str("Dxvi6N9BjLZLXnd7PL6z6Qzumcn3tozWd8FfErjkVsY7").unwrap(),
-                        Pubkey::from_str("FiN8P9zDVYKYGwMwwTq7ptQFifN67ZZHBpMuscNABeDX").unwrap(),
-                        Pubkey::from_str("HwfZfppkMjpeo3QhS6gLpXoc1P8U4J7UmpPyuPCyY8Qc").unwrap(),
-                    ];
+                    // use {solana_sdk::pubkey::Pubkey, std::str::FromStr};
+                    // let keys_to_match = vec![
+                    //     Pubkey::from_str("4hzUTCDKu3n3vLKKjcGTg6RBAsSC82MFEMqVzRKZPmVe").unwrap(),
+                    //     Pubkey::from_str("4hzXYnCMyFp6UgdA7Lt119N1qtn8xfHJcCtWhKrxSBzA").unwrap(),
+                    //     Pubkey::from_str("AHrRBhSmSvYjPLcrDAfnETxNMNAVUE67AHf5qWJrq2Fd").unwrap(),
+                    //     Pubkey::from_str("DmWegxEBuzWSe3qghTuAW5oPHc9ZgUohy9QZsjtrNyvq").unwrap(),
+                    //     Pubkey::from_str("Dxvi6N9BjLZLXnd7PL6z6Qzumcn3tozWd8FfErjkVsY7").unwrap(),
+                    //     Pubkey::from_str("FiN8P9zDVYKYGwMwwTq7ptQFifN67ZZHBpMuscNABeDX").unwrap(),
+                    //     Pubkey::from_str("HwfZfppkMjpeo3QhS6gLpXoc1P8U4J7UmpPyuPCyY8Qc").unwrap(),
+                    // ];
 
-                    let print_account_stuff = keys_to_match.iter().any(|&x| x == **stake_pubkey);
-                    if print_account_stuff {
-                        log::warn!("{:?}", vote_pubkey);
-                        log::warn!("{:?}", vote_state);
-                    }
+                    // let print_account_stuff = keys_to_match.iter().any(|&x| x == **stake_pubkey);
+                    // if print_account_stuff {
+                    //     log::warn!("{:?}", vote_pubkey);
+                    //     log::warn!("{:?}", vote_state);
+                    // }
 
                     solana_stake_program::points::calculate_points(
                         stake_account.stake_state(),
