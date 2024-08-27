@@ -5,6 +5,7 @@ use {
         account::{create_account_shared_data_with_fields as create_account, from_account},
         sysvar,
     },
+    solana_stake_program::points::PointValue,
 };
 
 impl Bank {
@@ -28,7 +29,7 @@ impl Bank {
         distributed_rewards: u64,
         distribution_starting_block_height: u64,
         num_partitions: u64,
-        total_points: u128,
+        point_value: PointValue,
     ) {
         assert!(self.is_partitioned_rewards_code_enabled());
 
@@ -40,7 +41,8 @@ impl Bank {
             distribution_starting_block_height,
             num_partitions,
             parent_blockhash,
-            total_points,
+            total_points: point_value.points,
+            point_value_rewards: point_value.rewards,
             total_rewards,
             distributed_rewards,
             active: true,

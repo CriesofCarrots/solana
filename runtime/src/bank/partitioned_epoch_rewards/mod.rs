@@ -18,6 +18,7 @@ use {
         reward_info::RewardInfo,
         stake::state::{Delegation, Stake, StakeStateV2},
     },
+    solana_stake_program::points::PointValue,
     solana_vote::vote_account::VoteAccounts,
     std::sync::Arc,
 };
@@ -98,11 +99,24 @@ struct StakeRewardCalculation {
     total_stake_rewards_lamports: u64,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct CalculateValidatorRewardsResult {
     vote_rewards_accounts: VoteRewardsAccounts,
     stake_reward_calculation: StakeRewardCalculation,
-    total_points: u128,
+    point_value: PointValue,
+}
+
+impl Default for CalculateValidatorRewardsResult {
+    fn default() -> Self {
+        Self {
+            vote_rewards_accounts: VoteRewardsAccounts::default(),
+            stake_reward_calculation: StakeRewardCalculation::default(),
+            point_value: PointValue {
+                points: 0,
+                rewards: 0,
+            },
+        }
+    }
 }
 
 /// hold reward calc info to avoid recalculation across functions
@@ -124,7 +138,7 @@ pub(super) struct PartitionedRewardsCalculation {
     pub(super) foundation_rate: f64,
     pub(super) prev_epoch_duration_in_years: f64,
     pub(super) capitalization: u64,
-    total_points: u128,
+    point_value: PointValue,
 }
 
 /// result of calculating the stake rewards at beginning of new epoch
@@ -143,7 +157,7 @@ pub(super) struct CalculateRewardsAndDistributeVoteRewardsResult {
     /// total rewards points calculated for the current epoch, where points
     /// equals the sum of (delegated stake * credits observed) for all
     /// delegations
-    pub(super) total_points: u128,
+    pub(super) point_value: PointValue,
     /// stake rewards that still need to be distributed, grouped by partition
     pub(super) stake_rewards_by_partition: Vec<PartitionedStakeRewards>,
 }

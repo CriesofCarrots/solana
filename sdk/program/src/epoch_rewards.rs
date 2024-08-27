@@ -29,7 +29,12 @@ pub struct EpochRewards {
     /// delegations
     pub total_points: u128,
 
-    /// The total rewards for the current epoch, in lamports
+    /// The total rewards calculated for the current epoch. This may be greater
+    /// than `total_rewards`, due to rounding and inability to deliver rewards
+    /// smaller than 1 lamport.
+    pub point_value_rewards: u64,
+
+    /// The total rewards to be distributed in the current epoch, in lamports
     pub total_rewards: u64,
 
     /// The rewards currently distributed for the current epoch, in lamports
