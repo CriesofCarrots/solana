@@ -195,6 +195,7 @@ fn calculate_stake_rewards(
         .unwrap();
 
     if print_account_stuff {
+        log::warn!("points {:?}", points);
         log::warn!("u128 rewards {:?}", rewards);
     }
 
