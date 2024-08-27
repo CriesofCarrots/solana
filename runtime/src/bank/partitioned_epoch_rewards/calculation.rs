@@ -558,6 +558,8 @@ impl Bank {
         thread_pool: &ThreadPool,
     ) {
         let epoch_rewards_sysvar = self.get_epoch_rewards_sysvar();
+        log::warn!("in recalculate_partitioned_rewards");
+        log::warn!("SYSVAR {:?}", epoch_rewards_sysvar);
         if epoch_rewards_sysvar.active {
             let stake_rewards_by_partition = self.recalculate_stake_rewards(
                 &epoch_rewards_sysvar,
