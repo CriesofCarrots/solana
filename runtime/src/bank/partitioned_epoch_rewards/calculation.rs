@@ -127,6 +127,8 @@ impl Bank {
             total_stake_rewards_lamports,
         } = stake_rewards_by_partition;
 
+        log::warn!("total_stake_rewards_lamports {:?}", total_stake_rewards_lamports);
+
         // the remaining code mirrors `update_rewards_with_thread_pool()`
 
         let new_vote_balance_and_staked = self.stakes_cache.stakes().vote_balance_and_staked();
@@ -138,7 +140,7 @@ impl Bank {
         // verify that we didn't pay any more than we expected to
         assert!(validator_rewards >= validator_rewards_paid + total_stake_rewards_lamports);
 
-        info!(
+        log::warn!(
             "distributed vote rewards: {} out of {}, remaining {}",
             validator_rewards_paid, validator_rewards, total_stake_rewards_lamports
         );
