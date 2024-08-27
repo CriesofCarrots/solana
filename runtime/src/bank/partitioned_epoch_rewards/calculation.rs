@@ -317,6 +317,8 @@ impl Bank {
 
         // Use `EpochStakes` for vote accounts
         let leader_schedule_epoch = self.epoch_schedule().get_leader_schedule_epoch(self.slot());
+        log::warn!("self.slot() {:?}", self.slot());
+        log::warn!("leader_schedule_epoch {:?}", leader_schedule_epoch);
         let cached_vote_accounts = self.epoch_stakes(leader_schedule_epoch)
             .expect("calculation should always run after Bank::update_epoch_stakes(leader_schedule_epoch)")
             .stakes()
