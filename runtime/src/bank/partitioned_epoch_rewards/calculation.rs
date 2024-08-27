@@ -223,6 +223,7 @@ impl Bank {
         metrics: &mut RewardsMetrics,
     ) -> PartitionedRewardsCalculation {
         let capitalization = self.capitalization();
+        log::warn!("capitalization {:?}", capitalization);
         let PrevEpochInflationRewards {
             validator_rewards,
             prev_epoch_duration_in_years,
