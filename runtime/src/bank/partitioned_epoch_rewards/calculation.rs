@@ -564,7 +564,7 @@ impl Bank {
         let rewarded_epoch = self.epoch().saturating_sub(1);
 
         let point_value = PointValue {
-            rewards: epoch_rewards_sysvar.total_rewards,
+            rewards: epoch_rewards_sysvar.point_value_rewards,
             points: epoch_rewards_sysvar.total_points,
         };
 
