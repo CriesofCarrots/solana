@@ -2556,6 +2556,7 @@ impl Bank {
                         stake_history,
                         reward_calc_tracer.as_ref(),
                         new_warmup_cooldown_rate_epoch,
+                        false,
                     );
                     if let Ok((stakers_reward, voters_reward)) = redeemed {
                         // track voter rewards

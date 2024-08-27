@@ -39,6 +39,7 @@ pub fn redeem_rewards(
     stake_history: &StakeHistory,
     inflation_point_calc_tracer: Option<impl Fn(&InflationPointCalculationEvent)>,
     new_rate_activation_epoch: Option<Epoch>,
+    print_account_stuff: bool,
 ) -> Result<(u64, u64), InstructionError> {
     if let StakeStateV2::Stake(meta, mut stake, stake_flags) = stake_state {
         if let Some(inflation_point_calc_tracer) = inflation_point_calc_tracer.as_ref() {
@@ -65,6 +66,7 @@ pub fn redeem_rewards(
             stake_history,
             inflation_point_calc_tracer,
             new_rate_activation_epoch,
+            print_account_stuff,
         ) {
             stake_account.checked_add_lamports(stakers_reward)?;
             stake_account.set_state(&StakeStateV2::Stake(meta, stake, stake_flags))?;
@@ -86,6 +88,7 @@ fn redeem_stake_rewards(
     stake_history: &StakeHistory,
     inflation_point_calc_tracer: Option<impl Fn(&InflationPointCalculationEvent)>,
     new_rate_activation_epoch: Option<Epoch>,
+    print_account_stuff: bool,
 ) -> Option<(u64, u64)> {
     if let Some(inflation_point_calc_tracer) = inflation_point_calc_tracer.as_ref() {
         inflation_point_calc_tracer(&InflationPointCalculationEvent::CreditsObserved(
@@ -101,6 +104,7 @@ fn redeem_stake_rewards(
         stake_history,
         inflation_point_calc_tracer.as_ref(),
         new_rate_activation_epoch,
+        print_account_stuff,
     )
     .map(|calculated_stake_rewards| {
         if let Some(inflation_point_calc_tracer) = inflation_point_calc_tracer {
@@ -132,6 +136,7 @@ fn calculate_stake_rewards(
     stake_history: &StakeHistory,
     inflation_point_calc_tracer: Option<impl Fn(&InflationPointCalculationEvent)>,
     new_rate_activation_epoch: Option<Epoch>,
+    print_account_stuff: bool,
 ) -> Option<CalculatedStakeRewards> {
     // ensure to run to trigger (optional) inflation_point_calc_tracer
     let CalculatedStakePoints {
@@ -144,6 +149,7 @@ fn calculate_stake_rewards(
         stake_history,
         inflation_point_calc_tracer.as_ref(),
         new_rate_activation_epoch,
+        print_account_stuff,
     );
 
     // Drive credits_observed forward unconditionally when rewards are disabled

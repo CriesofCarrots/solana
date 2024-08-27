@@ -399,11 +399,13 @@ impl Bank {
                         Pubkey::from_str("FiN8P9zDVYKYGwMwwTq7ptQFifN67ZZHBpMuscNABeDX").unwrap(),
                         Pubkey::from_str("HwfZfppkMjpeo3QhS6gLpXoc1P8U4J7UmpPyuPCyY8Qc").unwrap(),
                     ];
-                    if keys_to_match.iter().any(|&x| x == stake_pubkey) {
-                        log::warn!("vote-account {:?} {:?}", vote_pubkey, vote_state);
-                    }
 
                     let pre_lamport = stake_account.lamports();
+
+                    let print_account_stuff = keys_to_match.iter().any(|&x| x == stake_pubkey);
+                    if print_account_stuff {
+                        log::warn!("{:?}", stake_pubkey);
+                    }
 
                     let redeemed = solana_stake_program::rewards::redeem_rewards(
                         rewarded_epoch,
@@ -414,6 +416,7 @@ impl Bank {
                         stake_history,
                         reward_calc_tracer.as_ref(),
                         new_warmup_cooldown_rate_epoch,
+                        print_account_stuff,
                     );
 
                     let post_lamport = stake_account.lamports();
