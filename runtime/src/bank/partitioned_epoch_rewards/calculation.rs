@@ -547,7 +547,6 @@ impl Bank {
                 epoch_rewards_sysvar.distribution_starting_block_height,
                 stake_rewards_by_partition,
             );
-            log::warn!("{:?}", self.epoch_reward_status);
         }
     }
 

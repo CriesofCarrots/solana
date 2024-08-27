@@ -11,6 +11,17 @@ pub(in crate::bank::partitioned_epoch_rewards) fn hash_rewards_into_partitions(
     let hasher = EpochRewardsHasher::new(num_partitions, parent_blockhash);
     let mut result = vec![vec![]; num_partitions];
 
+    use {solana_sdk::pubkey::Pubkey, std::str::FromStr};
+    let keys_to_match = vec![
+        Pubkey::from_str("4hzUTCDKu3n3vLKKjcGTg6RBAsSC82MFEMqVzRKZPmVe").unwrap(),
+        Pubkey::from_str("4hzXYnCMyFp6UgdA7Lt119N1qtn8xfHJcCtWhKrxSBzA").unwrap(),
+        Pubkey::from_str("AHrRBhSmSvYjPLcrDAfnETxNMNAVUE67AHf5qWJrq2Fd").unwrap(),
+        Pubkey::from_str("DmWegxEBuzWSe3qghTuAW5oPHc9ZgUohy9QZsjtrNyvq").unwrap(),
+        Pubkey::from_str("Dxvi6N9BjLZLXnd7PL6z6Qzumcn3tozWd8FfErjkVsY7").unwrap(),
+        Pubkey::from_str("FiN8P9zDVYKYGwMwwTq7ptQFifN67ZZHBpMuscNABeDX").unwrap(),
+        Pubkey::from_str("HwfZfppkMjpeo3QhS6gLpXoc1P8U4J7UmpPyuPCyY8Qc").unwrap(),
+    ];
+
     for reward in stake_rewards {
         // clone here so the hasher's state is re-used on each call to `hash_address_to_partition`.
         // This prevents us from re-hashing the seed each time.
@@ -18,6 +29,14 @@ pub(in crate::bank::partitioned_epoch_rewards) fn hash_rewards_into_partitions(
         let partition_index = hasher
             .clone()
             .hash_address_to_partition(&reward.stake_pubkey);
+        if keys_to_match.iter().any(|&x| x == reward.stake_pubkey) {
+            log::warn!(
+                "{:?} partition {:?} {:?}",
+                reward.stake_pubkey,
+                partition_index,
+                reward
+            );
+        }
         result[partition_index].push(reward);
     }
     result
