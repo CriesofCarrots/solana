@@ -389,6 +389,20 @@ impl Bank {
                     }
                     let vote_state = vote_account.vote_state().cloned().ok()?;
 
+                    use {solana_sdk::pubkey::Pubkey, std::str::FromStr};
+                    let keys_to_match = vec![
+                        Pubkey::from_str("4hzUTCDKu3n3vLKKjcGTg6RBAsSC82MFEMqVzRKZPmVe").unwrap(),
+                        Pubkey::from_str("4hzXYnCMyFp6UgdA7Lt119N1qtn8xfHJcCtWhKrxSBzA").unwrap(),
+                        Pubkey::from_str("AHrRBhSmSvYjPLcrDAfnETxNMNAVUE67AHf5qWJrq2Fd").unwrap(),
+                        Pubkey::from_str("DmWegxEBuzWSe3qghTuAW5oPHc9ZgUohy9QZsjtrNyvq").unwrap(),
+                        Pubkey::from_str("Dxvi6N9BjLZLXnd7PL6z6Qzumcn3tozWd8FfErjkVsY7").unwrap(),
+                        Pubkey::from_str("FiN8P9zDVYKYGwMwwTq7ptQFifN67ZZHBpMuscNABeDX").unwrap(),
+                        Pubkey::from_str("HwfZfppkMjpeo3QhS6gLpXoc1P8U4J7UmpPyuPCyY8Qc").unwrap(),
+                    ];
+                    if keys_to_match.iter().any(|&x| x == stake_pubkey) {
+                        log::warn!("vote-account {:?} {:?}", vote_pubkey, vote_state);
+                    }
+
                     let pre_lamport = stake_account.lamports();
 
                     let redeemed = solana_stake_program::rewards::redeem_rewards(
