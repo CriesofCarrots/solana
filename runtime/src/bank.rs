@@ -2121,6 +2121,8 @@ impl Bank {
             )
         };
 
+        log::warn!("validator_rate {:?}", validator_rate);
+
         let prev_epoch_duration_in_years = self.epoch_duration_in_years(prev_epoch);
         let validator_rewards = (validator_rate
             * prev_epoch_capitalization as f64
